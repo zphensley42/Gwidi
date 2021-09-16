@@ -1,0 +1,4 @@
+PyAutoGUI==0.9.53
+pydirectinput>=0.0.1
+keyboard>=0.0.1
+dearpygui>=0.0.1
