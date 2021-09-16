@@ -4,6 +4,10 @@ import json
 from dearpygui.demo import show_demo
 import pydirectinput
 import keyboard
+import threading
+
+
+pydirectinput.PAUSE = 0
 
 
 class Constants:
@@ -11,16 +15,17 @@ class Constants:
     vp_height = 600
 
     slots_per_measure = 16
+    measures_count = 3
 
     notes = [
-        {'C2': '8'},
-        {'B': '7'},
-        {'A': '6'},
-        {'G': '5'},
-        {'F': '4'},
-        {'E': '3'},
-        {'D': '2'},
-        {'C1': '1'},
+        {'label': 'C2', 'key': '8'},
+        {'label': 'B', 'key': '7'},
+        {'label': 'A', 'key': '6'},
+        {'label': 'G', 'key': '5'},
+        {'label': 'F', 'key': '4'},
+        {'label': 'E', 'key': '3'},
+        {'label': 'D', 'key': '2'},
+        {'label': 'C1', 'key': '1'},
     ]
 
 
@@ -64,6 +69,8 @@ class Elements:
 #           N  S S S S S S S S S S S S S S S S
 #           N  S S S S S S S S S S S S S S S S
 
+# TODO: Draw the note labels on the left of the total window (keep the offset for mouse positioning likely)
+
 
 class Slot:
 
@@ -73,6 +80,12 @@ class Slot:
         self.drawn = False
         self.change_triggered = False
         self.rect = None
+        self.note_key = None
+        self.note_octave = None
+
+    def assign_note_key(self, nk, no):
+        self.note_key = nk
+        self.note_octave = no
 
     def set_rect(self, r):
         self.rect = r
@@ -89,17 +102,48 @@ class Slot:
     def clear_change_trigger(self):
         self.change_triggered = False
 
+    def send_inputs(self):
+        if self.note_octave == 0:  # high
+            pydirectinput.press('9')
+        elif self.note_octave == 2:  # low
+            pydirectinput.press('0')
+
+        pydirectinput.press(self.note_key['key'])
+
+        if self.note_octave == 0:  # high
+            pydirectinput.press('0')
+        elif self.note_octave == 2:  # low
+            pydirectinput.press('9')
+
+    def play(self):
+        self.playing = True
+        dpg.configure_item(self.rect, color=self.color())
+
+        if self.activated:
+            self.send_inputs()
+
+    def finished(self):
+        self.playing = False
+        dpg.configure_item(self.rect, color=self.color())
+
+
     def fill(self):
         return [0, 255, 0, 255] if self.activated else [255, 255, 255, 255]
+
+    def color(self):
+        return [0, 0, 255, 255] if self.playing else [255, 255, 255, 255]
 
 
 class Note:
 
-    def __init__(self, note):
+    def __init__(self, note, octave):
         self.note = note
+        self.octave = octave
         self.slots = []
         for i in range(Constants.slots_per_measure):
-            self.slots.append(Slot())
+            s = Slot()
+            s.assign_note_key(self.note, self.octave)
+            self.slots.append(s)
 
 
 class Octave:
@@ -109,7 +153,8 @@ class Octave:
         self.notes = []
         for i in range(len(Constants.notes)):
             note = Constants.notes[i]
-            self.notes.append(Note(note))
+            new_note = Note(note, self.octave_val)
+            self.notes.append(new_note)
 
 
 class Measure:
@@ -130,6 +175,8 @@ class ControlBar:
         self.play_pause = None
         self.save = None
         self.load = None
+        self.measure_cnt_ctrl = None
+        self.measure_cnt_ctrl_apply = None
 
     def clear(self):
         if self.control_bar is not None:
@@ -152,6 +199,17 @@ class ControlBar:
         l = "Play" if not toggled else "Pause"
         dpg.set_item_label(self.play_pause, label=l)
 
+        start_timer()
+
+    def cb_cnt_changed(self, sender, app_data):
+        dpg.set_item_user_data(sender, app_data)
+
+    def cb_apply(self, sender, app_data):
+        cnt = dpg.get_item_user_data(self.measure_cnt_ctrl)
+        Constants.measures_count = cnt
+        init_measures(cnt)
+        main_window.draw()
+
     def cb_save(self, sender, app_data):
         print('cb_save')
 
@@ -169,6 +227,10 @@ class ControlBar:
             self.save = dpg.add_button(label="Save", callback=self.cb_save, pos=[60, 0], height=self.height(), width=50)
             self.load = dpg.add_button(label="Load", callback=self.cb_load, pos=[120, 0], height=self.height(), width=50)
 
+            self.measure_cnt_ctrl = dpg.add_input_int(label="# of Measures", callback=self.cb_cnt_changed, pos=[200, 20], default_value=Constants.measures_count, width=100)
+            self.measure_cnt_ctrl_apply = dpg.add_button(label="Apply", callback=self.cb_apply, pos=[410, 0], height=self.height(), width=50)
+            dpg.set_item_user_data(self.measure_cnt_ctrl, Constants.measures_count)
+
 
 class InfoBar:
     def __init__(self):
@@ -176,6 +238,7 @@ class InfoBar:
         self.mouse_pos = []
         self.translated_mouse_pos = []
         self.data_text = None
+        self.play_index = 0
 
     def refresh(self):
         dpg.configure_item(self.data_text, default_value=self.data_string())
@@ -188,11 +251,16 @@ class InfoBar:
         self.translated_mouse_pos = mouse_pos
         self.refresh()
 
+    def set_play_index(self, index):
+            self.play_index = index
+            self.refresh()
+
     def data_string(self):
-        return "{label} mouse_pos: {mp} translated: {mp2}".format(
+        return "{label} mouse_pos: {mp} translated: {mp2} play_index: {pi}".format(
             label=self.data_label,
             mp=self.mouse_pos,
             mp2=self.translated_mouse_pos,
+            pi=self.play_index,
         )
 
     def draw(self):
@@ -284,7 +352,9 @@ class MeasureDisplay:
                     pmin=[start_x + (MeasureDisplay.slot_spacing / 2), start_y + (MeasureDisplay.slot_spacing / 2)],
                     pmax=[start_x + MeasureDisplay.slot_width - (MeasureDisplay.slot_spacing / 2),
                           start_y + MeasureDisplay.slot_height - (MeasureDisplay.slot_spacing / 2)],
-                    fill=slot.fill()
+                    fill=slot.fill(),
+                    color=slot.color(),
+                    thickness=4,
                 )
                 slot.set_rect(r)
 
@@ -319,7 +389,6 @@ class MeasureDisplay:
                         slot_found = slot
                         break
 
-        print('slot_found: {s}'.format(s=str(slot_found)))
         if slot_found is not None:
             slot_found.change()
 
@@ -344,7 +413,12 @@ class MainWindow:
         self.measures = MeasuresDisplay()
         self.measures.set_data(g_measures)
 
+    def clear(self):
+        dpg.delete_item(Elements.dpg_window, children_only=True)
+
     def draw(self):
+        self.clear()
+
         self.controls.draw()
         self.info.draw()
         self.measures.draw()
@@ -392,12 +466,13 @@ class MouseStats:
 
 
 
-    def downed(self):
+    def downed(self, sender, app_data):
         if self.is_down:
             return
 
         print('downed')
         self.is_down = True
+        self.moved(sender, self.pos)
 
     def upped(self):
         if not self.is_down:
@@ -449,6 +524,117 @@ def start_editor():
         dpg.render_dearpygui_frame()
 
     dpg.cleanup_dearpygui()
+
+
+class TimeManager(threading.Thread):
+    BPM = 120
+
+    # 60k / BPM = quarter
+    # 60k * 4 / BPM = full
+    # 60k * 1/2 / BPM = eighth
+    # 60k * 1/4 / BPM = sixteenth
+    mult = 4 / Constants.slots_per_measure
+
+    def __init__(self):
+        self.tick_cb = None
+        self.finished_cb = None
+        self.mult = 4 / Constants.slots_per_measure
+
+        if Constants.slots_per_measure == 4:
+            self.speed = (60 * self.mult) / TimeManager.BPM
+        if Constants.slots_per_measure == 8:
+            self.speed = (60 * self.mult) / TimeManager.BPM
+        if Constants.slots_per_measure == 16:
+            self.speed = (60 * self.mult) / TimeManager.BPM
+
+        self.alive = True
+        threading.Thread.__init__(self)
+
+    def set_cb(self, tick_cb, finished_cb):
+        self.tick_cb = tick_cb
+        self.finished_cb = finished_cb
+
+    def run(self):
+        while self.alive:
+            time.sleep(self.speed)
+            self.tick()
+
+        if self.finished_cb is not None:
+            self.finished_cb()
+
+    def tick(self):
+        print('TimeManager tick')
+        if self.tick_cb is not None:
+            self.tick_cb()
+
+    def kill(self):
+        self.alive = False
+        # self.join()
+
+
+play_time = 0
+last_tick_slots = []
+def time_tick():
+    global last_tick_slots
+    global play_time
+    global g_measures
+    global g_tm
+
+    for s in last_tick_slots:
+        s.finished()
+    last_tick_slots.clear()
+
+    play_time += 1
+    # treat this as an 'index' to the slot to use in playback in measures
+
+
+    if play_time >= len(g_measures) * Constants.slots_per_measure:
+        # finished
+        g_tm.kill()
+        return
+
+    # num of slots per measure is the mod to determine which measure the slot is in
+    measure_index = int(play_time / Constants.slots_per_measure)
+    m = g_measures[measure_index]
+
+    o0 = m.octaves[0]
+    o1 = m.octaves[1]
+    o2 = m.octaves[2]
+
+    # slot index in the notes is the remainder
+    slot_index = play_time % Constants.slots_per_measure
+
+    main_window.info.set_play_index('play_time: {pt} measure_index: {mi} slot_index: {si}'.format(pt=play_time, mi=measure_index, si=slot_index))
+
+    for n in o0.notes:
+        s = n.slots[slot_index]
+        s.play()
+        last_tick_slots.append(s)
+    for n in o1.notes:
+        s = n.slots[slot_index]
+        s.play()
+        last_tick_slots.append(s)
+    for n in o2.notes:
+        s = n.slots[slot_index]
+        s.play()
+        last_tick_slots.append(s)
+
+
+def time_finished():
+    dpg.set_item_user_data(main_window.controls.play_pause, False)
+    dpg.set_item_label(main_window.controls.play_pause, "Play")
+
+
+g_tm = None
+def start_timer():
+    global g_tm
+    global play_time
+    if g_tm is None or not g_tm.alive:
+        play_time = 0
+        g_tm = TimeManager()
+        g_tm.set_cb(time_tick, time_finished)
+        g_tm.start()
+
 
 
 if __name__ == '__main__':
