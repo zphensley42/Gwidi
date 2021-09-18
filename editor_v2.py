@@ -13,8 +13,9 @@ pydirectinput.PAUSE = 0
 # TODO: Drawn / Loading states for when we are waiting for things to finish drawing
 # TODO: List of songs / files for save/load
 # TODO: Macros
-# TODO: left click add, right click remove
 # TODO: difference between 'strung' notes and 'held' notes so that the tabs can look closer to the MIDI
+# TODO: Fix clearing taking so long?
+# TODO: refresh measures -> load fails to do anything
 
 
 class Constants:
@@ -76,8 +77,6 @@ class Elements:
 #           N  S S S S S S S S S S S S S S S S
 #           N  S S S S S S S S S S S S S S S S
 
-# TODO: Draw the note labels on the left of the total window (keep the offset for mouse positioning likely)
-
 # TODO: Some timing issues with clear / load / etc freezing the UI (and sleeps for playback doing similar when going between octaves?)
 # TODO: Perhaps make restriction on how notes work across octaves (i.e. no multiple notes at the same time across multiple octaves)
 
@@ -86,6 +85,7 @@ class Slot:
 
     def __init__(self):
         self.activated = False
+        self.is_held_note = False
         self.playing = False
         self.drawn = False
         self.change_triggered = False
@@ -104,15 +104,17 @@ class Slot:
     def set_rect_text(self, r):
         self.rect_text = r
 
-    def change(self):
+    def change(self, type):
         if self.change_triggered:
             return
 
-        self.activated = not self.activated
+        # type -> 0 add, 1 remove, 2 tertiary add (held notes -- don't actually activate)
+        self.activated = (type == 0)
         self.change_triggered = True
+        self.is_held_note = (type == 2)
 
         dpg.configure_item(self.rect, fill=self.fill())
-        dpg.configure_item(self.rect_text, show=self.activated)
+        dpg.configure_item(self.rect_text, show=(self.activated or self.is_held_note))
 
     def clear(self):
         self.activated = False
@@ -120,7 +122,7 @@ class Slot:
         self.playing = False
 
         dpg.configure_item(self.rect, fill=self.fill())
-        dpg.configure_item(self.rect_text, show=self.activated)
+        dpg.configure_item(self.rect_text, show=(self.activated or self.is_held_note))
         dpg.configure_item(self.rect, color=self.color())
 
 
@@ -129,22 +131,6 @@ class Slot:
 
     def send_inputs(self):
         pydirectinput.press(self.note_key['key'])
-
-        # if self.note_octave == 0:  # high
-        #     pydirectinput.press('9')
-        #     time.sleep(0.1)
-        # elif self.note_octave == 2:  # low
-        #     pydirectinput.press('0')
-        #     time.sleep(0.1)
-        #
-        # pydirectinput.press(self.note_key['key'])
-        #
-        # if self.note_octave == 0:  # high
-        #     pydirectinput.press('0')
-        #     time.sleep(0.1)
-        # elif self.note_octave == 2:  # low
-        #     pydirectinput.press('9')
-        #     time.sleep(0.1)
 
     def play(self):
         self.playing = True
@@ -159,7 +145,12 @@ class Slot:
 
 
     def fill(self):
-        return [0, 255, 0, 255] if self.activated else [255, 255, 255, 255]
+        if self.is_held_note:
+            return [0, 255, 255, 255]
+        elif self.activated:
+            return [0, 255, 0, 255]
+        else:
+            return [255, 255, 255, 255]
 
     def color(self):
         return [0, 0, 255, 255] if self.playing else [255, 255, 255, 255]
@@ -428,7 +419,7 @@ class MeasureDisplay:
                 )
                 print('drawing text: ' + slot.note_key['label'])
                 t = 'o{ov}{nk}'.format(ov=slot.note_octave, nk=slot.note_key['label'])
-                rect_text = dpg.draw_text(size=11, show=slot.activated, color=[0, 0, 0, 255], text=t, pos=[start_x + (MeasureDisplay.slot_spacing / 2) + 1, start_y + (MeasureDisplay.slot_spacing / 2) + 2])
+                rect_text = dpg.draw_text(size=11, show=(slot.activated or slot.is_held_note), color=[0, 0, 0, 255], text=t, pos=[start_x + (MeasureDisplay.slot_spacing / 2) + 1, start_y + (MeasureDisplay.slot_spacing / 2) + 2])
                 slot.set_rect(r)
                 slot.set_rect_text(rect_text)
 
@@ -439,7 +430,7 @@ class MeasureDisplay:
                     ey = start_y + MeasureDisplay.slot_height - (MeasureDisplay.slot_spacing / 2)
                     dpg.draw_line(p1=[sx, sy], p2=[ex, ey], thickness=1, color=[255, 0, 0, 255])
 
-    def delegate_mouse_down(self, pos):
+    def delegate_mouse_down(self, pos, type):
         global main_window
 
         # Things to care about when determining what rect we are in:
@@ -471,7 +462,7 @@ class MeasureDisplay:
                         break
 
         if slot_found is not None:
-            slot_found.change()
+            slot_found.change(type)
 
     def draw(self, parent):
         print('drawing measure display')
@@ -673,6 +664,8 @@ def load(fname):
 
 class MouseStats:
     is_down = False
+    is_down_secondary = False
+    is_down_tertiary = False
     pos = None
 
     def moved(self, sender, app_data):
@@ -690,26 +683,45 @@ class MouseStats:
         main_window.info.set_mouse_pos(self.pos)
         main_window.info.set_translated_mouse_pos(translated_mouse_pos)
 
-        if self.is_down:
+        type = 0 if self.is_down else 1 if self.is_down_secondary else 2 if self.is_down_tertiary else -1
+        # print('type: ' + str(type))
+        if self.is_down or self.is_down_secondary or self.is_down_tertiary:
             for mdisplay in main_window.measures.measure_displays:
-                mdisplay.delegate_mouse_down(translated_mouse_pos)
+                mdisplay.delegate_mouse_down(translated_mouse_pos, type)
 
 
 
     def downed(self, sender, app_data):
-        if self.is_down:
+        if self.is_down or self.is_down_secondary or self.is_down_tertiary:
             return
 
+        # primary
+        primary_down = dpg.is_mouse_button_down(0)
+
+        # secondary
+        secondary_down = dpg.is_mouse_button_down(1)
+
+        # tertiary
+        tertiary_down = dpg.is_mouse_button_down(2)
+
         print('downed')
-        self.is_down = True
+        if primary_down:
+            self.is_down = True
+        elif secondary_down:
+            self.is_down_secondary = True
+        elif tertiary_down:
+            self.is_down_tertiary = True
+
         self.moved(sender, self.pos)
 
     def upped(self):
-        if not self.is_down:
+        if not self.is_down and not self.is_down_secondary and not self.is_down_tertiary:
             return
 
         print('upped')
         self.is_down = False
+        self.is_down_secondary = False
+        self.is_down_tertiary = False
 
         # reset trigger states for all slots
         for m in g_measures:
