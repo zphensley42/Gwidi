@@ -2,20 +2,28 @@ import time
 import dearpygui.dearpygui as dpg
 import json
 from dearpygui.demo import show_demo
-import pydirectinput
+
+# for windows
+# import pydirectinput
+# pydirectinput.PAUSE = 0
+
+# for osx
+class pydirectinput:
+    @staticmethod
+    def press(key):
+        keyboard.press_and_release(key)
+
+
 import keyboard
 import threading
 
 
-pydirectinput.PAUSE = 0
-
-
 # TODO: Drawn / Loading states for when we are waiting for things to finish drawing
-# TODO: List of songs / files for save/load
 # TODO: Macros
 # TODO: difference between 'strung' notes and 'held' notes so that the tabs can look closer to the MIDI
-# TODO: Fix clearing taking so long?
 # TODO: refresh measures -> load fails to do anything
+
+# TODO: For performance, move 'sending inputs' for the playback out to a separate thread/handler?
 
 
 class Constants:
@@ -109,9 +117,17 @@ class Slot:
             return
 
         # type -> 0 add, 1 remove, 2 tertiary add (held notes -- don't actually activate)
-        self.activated = (type == 0)
-        self.change_triggered = True
-        self.is_held_note = (type == 2)
+        # also, if already activated then toggle with held or not
+        if self.activated and type == 0:
+            self.is_held_note = True
+            self.activated = False
+        elif self.is_held_note and type == 0:
+            self.activated = True
+            self.is_held_note = False
+        else:
+            self.activated = (type == 0)
+            self.change_triggered = True
+            self.is_held_note = (type == 2)
 
         dpg.configure_item(self.rect, fill=self.fill())
         dpg.configure_item(self.rect_text, show=(self.activated or self.is_held_note))
@@ -241,11 +257,13 @@ class ControlBar:
 
     def cb_save(self, sender, app_data):
         print('cb_save')
-        save('test_save.out')
+        ControlBar.file_select_purpose = 'save'
+        dpg.show_item("song_sel")
 
     def cb_load(self, sender, app_data):
         print('cb_load')
-        load('test.out')
+        ControlBar.file_select_purpose = 'load'
+        dpg.show_item("song_sel")
 
     def cb_bpm_changed(self, sender, app_data):
         dpg.set_item_user_data(sender, app_data)
@@ -263,12 +281,20 @@ class ControlBar:
         dpg.set_item_label(self.play_pause, label="Play")
 
         stop_timer()
-        clear_measures()
+        init_measures(Constants.measures_count)
         main_window.refresh_measures()
         main_window.draw()
 
+    file_select_purpose = 'load'
+    def cb_file_select(self, sender, app_data):
+        print('app_data: ', app_data)
+        if ControlBar.file_select_purpose == 'load':
+            load(app_data['file_path_name'])
+        elif ControlBar.file_select_purpose == 'save':
+            save(app_data['file_path_name'])
+
     def draw(self):
-        # self.clear()
+        self.clear()
 
         with dpg.child(parent=Elements.dpg_window, pos=[0, 0], autosize_x=True, autosize_y=True) as c:
             self.control_bar = c
@@ -287,6 +313,8 @@ class ControlBar:
             self.bpm_ctrl = dpg.add_input_int(label="BPM", callback=self.cb_bpm_changed, pos=[540, 20], default_value=TimeManager.BPM, max_value=999, width=100)
             self.bpm_ctrl_apply = dpg.add_button(label="Apply", callback=self.cb_apply_bpm, pos=[680, 0], height=self.height(), width=50)
             dpg.set_item_user_data(self.bpm_ctrl, TimeManager.BPM)
+
+            dpg.add_button(label="Song Selector", callback=lambda: dpg.show_item("song_sel"), pos=[735, 20])
 
 
 class InfoBar:
@@ -417,7 +445,7 @@ class MeasureDisplay:
                     color=slot.color(),
                     thickness=4,
                 )
-                print('drawing text: ' + slot.note_key['label'])
+                # print('drawing text: ' + slot.note_key['label'])
                 t = 'o{ov}{nk}'.format(ov=slot.note_octave, nk=slot.note_key['label'])
                 rect_text = dpg.draw_text(size=11, show=(slot.activated or slot.is_held_note), color=[0, 0, 0, 255], text=t, pos=[start_x + (MeasureDisplay.slot_spacing / 2) + 1, start_y + (MeasureDisplay.slot_spacing / 2) + 2])
                 slot.set_rect(r)
@@ -465,7 +493,7 @@ class MeasureDisplay:
             slot_found.change(type)
 
     def draw(self, parent):
-        print('drawing measure display')
+        # print('drawing measure display')
 
         # draw 3 octaves
         self.draw_octave(parent, self.index, 2)
@@ -501,9 +529,14 @@ class MainWindow:
 
     def clear(self):
         dpg.delete_item(Elements.dpg_window, children_only=True)
+        MouseStats.handlers_enabled = False
 
     def refresh_measures(self):
         global g_measures
+
+        # TODO: Make refresh methods in each view class and call them here instead
+        # TODO: Use configure in those to re-draw the items instead of deleting / adding them again
+        # TODO: Hopefully this will cut down on the crashes on clear / load
 
         self.controls = ControlBar()
         self.info = InfoBar()
@@ -512,12 +545,14 @@ class MainWindow:
         self.note_labels = NoteLabels()
 
     def draw(self):
+        MouseStats.handlers_enabled = False
         self.clear()
 
         self.controls.draw()
         self.info.draw()
         self.measures.draw()
         self.note_labels.draw()
+        MouseStats.handlers_enabled = True
 
 
 def on_viewport_resize():
@@ -530,18 +565,28 @@ def render_callback():
 
 
 g_measures = []
+g_slots = []
 def init_measures(count):
     global g_measures
+    global g_slots
     g_measures.clear()
     for i in range(count):
         g_measures.append(Measure())
 
-def clear_measures():
+    # make a list of slots for access elsewhere (like clearing)
     for m in g_measures:
         for o in m.octaves:
             for n in o.notes:
                 for s in n.slots:
-                    s.clear()
+                    g_slots.append(s)
+
+def clear_measures():
+    global g_slots
+    ts = time.time_ns()
+    for s in g_slots:
+        s.clear()
+    td = (time.time_ns() - ts) / 1000000
+    print('clear_measures time: {t}'.format(t=td))
 
 def save(fname):
     global g_measures
@@ -563,24 +608,33 @@ def save(fname):
                 for n in o.notes:
                     slot = n.slots[slot_index]
 
-                    if slot.activated:
+                    if slot.activated or slot.is_held_note:
                         if write_delim:
                             f.write('-')
 
-                        f.write('o{ov}n{nv}'.format(ov=slot.note_octave, nv=slot.note_key['key']))
+                        f.write('o{ov}{nt}{nv}'.format(ov=slot.note_octave, nt='n' if slot.activated else 'h', nv=slot.note_key['key']))
                         write_delim = True
 
             f.write(']')
 
 
+# TODO: Save / load needs to work with held notes as well
 def load(fname):
     global g_measures
     global main_window
-    clear_measures()
+
+    print('loading file: ', fname)
+
+    stop_timer()
+    # TODO: The below is crashing potentially (it is definitely something with clearing / redrawing that is crashing)
+    # init_measures(Constants.measures_count)
+    # main_window.refresh_measures()
+    # main_window.draw()
 
     f = open(fname, 'r')
     song_info = f.read()
 
+    # n can be n or h (n is activated, h is held note)
     # 130[o0n1-o0n5-o1n3-o2n4]
     # BPM[<--> note info]
     #    [octave+note-octave+note-etc]
@@ -630,6 +684,8 @@ def load(fname):
 
             print('oct_ind: {oi}, note_ind: {ni}'.format(oi=oct_ind, ni=note_ind))
 
+            note_type = note_ind[0]
+
             oct_val = int(oct_ind[1])
             note_val = note_ind[1]
 
@@ -644,7 +700,10 @@ def load(fname):
             if selected_oct is not None:
                 for n in selected_oct.notes:
                     if n.note['key'] == note_val:
-                        n.slots[slot_index].activated = True
+                        if note_type == 'h':
+                            n.slots[slot_index].is_held_note = True
+                        elif note_type == 'n':
+                            n.slots[slot_index].activated = True
                         break
 
         notes = notes[range_end+1:]
@@ -668,9 +727,14 @@ class MouseStats:
     is_down_tertiary = False
     pos = None
 
+    handlers_enabled = False
+
     def moved(self, sender, app_data):
         global g_measures
         global main_window
+
+        if not MouseStats.handlers_enabled:
+            return
 
         self.pos = app_data
         # print('moved: {pos}, down: {d}'.format(pos=self.pos, d=self.is_down))
@@ -692,6 +756,8 @@ class MouseStats:
 
 
     def downed(self, sender, app_data):
+        if not MouseStats.handlers_enabled:
+            return
         if self.is_down or self.is_down_secondary or self.is_down_tertiary:
             return
 
@@ -715,6 +781,8 @@ class MouseStats:
         self.moved(sender, self.pos)
 
     def upped(self):
+        if not MouseStats.handlers_enabled:
+            return
         if not self.is_down and not self.is_down_secondary and not self.is_down_tertiary:
             return
 
@@ -754,6 +822,9 @@ def start_editor():
     if main_window is None:
         main_window = MainWindow()
         main_window.draw()
+
+    fd = dpg.add_file_dialog(modal=True, show=False, callback=main_window.controls.cb_file_select, id="song_sel")
+    dpg.add_file_extension(extension=".gwm", parent=fd)
 
     dpg.set_viewport_width(Constants.vp_width)
     dpg.set_viewport_height(Constants.vp_height)
