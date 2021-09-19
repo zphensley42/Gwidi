@@ -219,6 +219,14 @@ class ControlBar:
         self.bpm_ctrl = None
         self.bpm_ctrl_apply = None
 
+    def refresh(self):
+        if self.control_bar is None:
+            return
+
+        dpg.configure_item(self.play_pause, label="Play")
+        dpg.configure_item(self.measure_cnt_ctrl, default_value=Constants.measures_count)
+        dpg.configure_item(self.bpm_ctrl, default_value=TimeManager.BPM)
+
     def clear(self):
         if self.control_bar is not None:
             dpg.delete_item(self.control_bar)
@@ -248,12 +256,11 @@ class ControlBar:
     def cb_cnt_changed(self, sender, app_data):
         dpg.set_item_user_data(sender, app_data)
 
+    # TODO: Just add measures / remove from current list, don't re-init
     def cb_apply(self, sender, app_data):
         cnt = dpg.get_item_user_data(self.measure_cnt_ctrl)
         Constants.measures_count = cnt
-        init_measures(cnt)
-        main_window.refresh_measures()
-        main_window.draw()
+        main_window.refresh({})
 
     def cb_save(self, sender, app_data):
         print('cb_save')
@@ -281,9 +288,7 @@ class ControlBar:
         dpg.set_item_label(self.play_pause, label="Play")
 
         stop_timer()
-        init_measures(Constants.measures_count)
-        main_window.refresh_measures()
-        main_window.draw()
+        main_window.refresh({})
 
     file_select_purpose = 'load'
     def cb_file_select(self, sender, app_data):
@@ -357,8 +362,21 @@ class MeasuresDisplay:
     drawlist_offset = 30
     def __init__(self):
         self.measures_panel = None
+        self.drawlist_panel = None
         self.measures = []
         self.measure_displays = []
+
+    def refresh(self):
+        # clear our drawn items
+        # Can't delete all children, note_labels are children
+        # need to only delete our drawn stuff
+        # dpg.delete_item(self.measures_panel, children_only=True)
+        for md in self.measure_displays:
+            md.clear()
+        self.measure_displays.clear()
+        dpg.delete_item(self.drawlist_panel)
+        self.drawlist_panel = None
+        self.draw_slots()
 
     def set_data(self, d):
         self.measures = d
@@ -380,18 +398,23 @@ class MeasuresDisplay:
         oct_h = len(self.measures[0].octaves[0].notes) * MeasureDisplay.slot_height
         return len(self.measures[0].octaves) * (oct_h + MeasureDisplay.octave_spacing)
 
+    def draw_slots(self):
+        with dpg.drawlist(parent=self.measures_panel, pos=[MeasuresDisplay.drawlist_offset, 0], width=self.content_width(),
+                          height=self.content_height() + 50) as dl:
+            self.drawlist_panel = dl
+            for iteration, m in enumerate(self.measures):
+                md = MeasureDisplay()
+                md.set_data(m, iteration)
+                self.measure_displays.append(md)
+
+                md.draw(dl)
+
     def draw(self):
         # self.clear()
 
         with dpg.child(parent=Elements.dpg_window, horizontal_scrollbar=True, autosize_y=True, autosize_x=True, pos=[0, 100]) as p:
             self.measures_panel = p
-            with dpg.drawlist(pos=[MeasuresDisplay.drawlist_offset, 0], width=self.content_width(), height=self.content_height() + 50) as dl:
-                for iteration, m in enumerate(self.measures):
-                    md = MeasureDisplay()
-                    md.set_data(m, iteration)
-                    self.measure_displays.append(md)
-
-                    md.draw(dl)
+            self.draw_slots()
 
 
 class MeasureDisplay:
@@ -408,6 +431,12 @@ class MeasureDisplay:
         self.octave_panels = []
         self.measure_dl = None
         self.index = 0
+        self.items = []
+
+    def clear(self):
+        for i in self.items:
+            dpg.delete_item(i)
+        self.items.clear()
 
     def set_data(self, d, i):
         self.measure = d
@@ -504,6 +533,7 @@ class MeasureDisplay:
 class NoteLabels:
 
     def draw(self):
+        print('drawing note labels')
         h = dpg.get_item_height(Elements.dpg_window)
         with dpg.drawlist(parent=main_window.measures.measures_panel, height=h, width=50, pos=[10, 0]) as dl:
             for i in range(3):
@@ -525,33 +555,48 @@ class MainWindow:
         self.info = None
         self.measures = None
         self.note_labels = None
-        self.refresh_measures()
+
+        self.controls = ControlBar()
+        self.info = InfoBar()
+        self.measures = MeasuresDisplay()
+        init_measures(Constants.measures_count)
+        self.measures.set_data(g_measures)
+        self.note_labels = NoteLabels()
 
     def clear(self):
         dpg.delete_item(Elements.dpg_window, children_only=True)
         MouseStats.handlers_enabled = False
 
-    def refresh_measures(self):
+    def refresh(self, opts):
         global g_measures
+
+        MouseStats.handlers_enabled = False
 
         # TODO: Make refresh methods in each view class and call them here instead
         # TODO: Use configure in those to re-draw the items instead of deleting / adding them again
         # TODO: Hopefully this will cut down on the crashes on clear / load
 
-        self.controls = ControlBar()
-        self.info = InfoBar()
-        self.measures = MeasuresDisplay()
+        self.controls.refresh()
+        self.info.refresh()
+
+        # TODO: Potential problem here as g_measures is mutable -- probably need to do some refactoring to keep it safe
+        if 'measures' in opts:
+            g_measures = opts['measures']
+        else:
+            init_measures(Constants.measures_count)
         self.measures.set_data(g_measures)
-        self.note_labels = NoteLabels()
+        self.measures.refresh()
+
+        MouseStats.handlers_enabled = True
 
     def draw(self):
         MouseStats.handlers_enabled = False
-        self.clear()
 
         self.controls.draw()
         self.info.draw()
         self.measures.draw()
         self.note_labels.draw()
+
         MouseStats.handlers_enabled = True
 
 
@@ -574,19 +619,12 @@ def init_measures(count):
         g_measures.append(Measure())
 
     # make a list of slots for access elsewhere (like clearing)
+    g_slots.clear()
     for m in g_measures:
         for o in m.octaves:
             for n in o.notes:
                 for s in n.slots:
                     g_slots.append(s)
-
-def clear_measures():
-    global g_slots
-    ts = time.time_ns()
-    for s in g_slots:
-        s.clear()
-    td = (time.time_ns() - ts) / 1000000
-    print('clear_measures time: {t}'.format(t=td))
 
 def save(fname):
     global g_measures
@@ -626,10 +664,6 @@ def load(fname):
     print('loading file: ', fname)
 
     stop_timer()
-    # TODO: The below is crashing potentially (it is definitely something with clearing / redrawing that is crashing)
-    # init_measures(Constants.measures_count)
-    # main_window.refresh_measures()
-    # main_window.draw()
 
     f = open(fname, 'r')
     song_info = f.read()
@@ -715,10 +749,8 @@ def load(fname):
     Constants.measures_count = len(parsed_measures)
     TimeManager.BPM = int(bpm)
 
-    g_measures = parsed_measures
+    main_window.refresh({'measures': parsed_measures})
     print_measures()
-    main_window.refresh_measures()
-    main_window.draw()
 
 
 class MouseStats:
@@ -811,7 +843,7 @@ main_window = None
 def start_editor():
     global main_window
 
-    init_measures(3)
+    # init_measures(3)
 
     Elements.dpg_window = dpg.add_window(id='MIDI_Editor', width=Constants.vp_width, height=Constants.vp_height)
     dpg.setup_viewport()
