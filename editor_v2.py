@@ -4,14 +4,14 @@ import json
 from dearpygui.demo import show_demo
 
 # for windows
-# import pydirectinput
-# pydirectinput.PAUSE = 0
+import pydirectinput
+pydirectinput.PAUSE = 0
 
 # for osx
-class pydirectinput:
-    @staticmethod
-    def press(key):
-        keyboard.press_and_release(key)
+# class pydirectinput:
+#     @staticmethod
+#     def press(key):
+#         keyboard.press_and_release(key)
 
 
 import keyboard
@@ -21,7 +21,8 @@ import threading
 # TODO: Drawn / Loading states for when we are waiting for things to finish drawing
 # TODO: Macros
 # TODO: difference between 'strung' notes and 'held' notes so that the tabs can look closer to the MIDI
-# TODO: refresh measures -> load fails to do anything
+# TODO: Add measure count display
+# TODO: Handle issues where after loading the 'mouse button' is still thought to be down
 
 # TODO: For performance, move 'sending inputs' for the playback out to a separate thread/handler?
 
@@ -264,11 +265,13 @@ class ControlBar:
 
     def cb_save(self, sender, app_data):
         print('cb_save')
+        MouseStats.handlers_enabled = False
         ControlBar.file_select_purpose = 'save'
         dpg.show_item("song_sel")
 
     def cb_load(self, sender, app_data):
         print('cb_load')
+        MouseStats.handlers_enabled = False
         ControlBar.file_select_purpose = 'load'
         dpg.show_item("song_sel")
 
@@ -293,6 +296,7 @@ class ControlBar:
     file_select_purpose = 'load'
     def cb_file_select(self, sender, app_data):
         print('app_data: ', app_data)
+        MouseStats.handlers_enabled = True
         if ControlBar.file_select_purpose == 'load':
             load(app_data['file_path_name'])
         elif ControlBar.file_select_purpose == 'save':
@@ -318,8 +322,6 @@ class ControlBar:
             self.bpm_ctrl = dpg.add_input_int(label="BPM", callback=self.cb_bpm_changed, pos=[540, 20], default_value=TimeManager.BPM, max_value=999, width=100)
             self.bpm_ctrl_apply = dpg.add_button(label="Apply", callback=self.cb_apply_bpm, pos=[680, 0], height=self.height(), width=50)
             dpg.set_item_user_data(self.bpm_ctrl, TimeManager.BPM)
-
-            dpg.add_button(label="Song Selector", callback=lambda: dpg.show_item("song_sel"), pos=[735, 20])
 
 
 class InfoBar:
@@ -910,7 +912,7 @@ class TimeManager(threading.Thread):
 
     def tick(self):
         print('TimeManager tick')
-        if self.tick_cb is not None:
+        if self.alive and self.tick_cb is not None:
             self.tick_cb()
 
     def kill(self):
@@ -971,7 +973,7 @@ def time_tick():
 
     # default if not found
     if oct_found is None:
-        last_octave = 1
+        # last_octave = 1
         oct_found = m.octaves[1]
 
     print('last_octave: {lo}   prev_last_octave: {plo}'.format(lo=last_octave, plo=prev_last_octave))
@@ -980,11 +982,11 @@ def time_tick():
     if last_octave > prev_last_octave:
         for i in range(last_octave - prev_last_octave):
             pydirectinput.press('0')  # move up
-            time.sleep(0.1)
+            time.sleep(0.01)
     elif last_octave < prev_last_octave:
         for i in range(prev_last_octave - last_octave):
             pydirectinput.press('9')  # move down
-            time.sleep(0.1)
+            time.sleep(0.01)
 
     # 'play' them all
     for n in oct_found.notes:
@@ -999,16 +1001,23 @@ def time_tick():
 
 
 def time_finished():
+    global last_tick_slots
+
     dpg.set_item_user_data(main_window.controls.play_pause, False)
     dpg.set_item_label(main_window.controls.play_pause, "Play")
     dpg.set_x_scroll(main_window.measures.measures_panel, 0)
+
+    last_tick_slots.clear()
+
 
 
 g_tm = None
 def start_timer():
     global g_tm
     global play_time
+    global last_octave
     if g_tm is None or not g_tm.alive:
+        last_octave = 1
         play_time = -1
         g_tm = TimeManager()
         g_tm.set_cb(time_tick, time_finished)
@@ -1017,10 +1026,12 @@ def start_timer():
 def stop_timer():
     global g_tm
     global play_time
+    global last_tick_slots
     if g_tm is not None:
         g_tm.kill()
         # g_tm.join()
         play_time = -1
+    last_tick_slots.clear()
 
 
 def print_measures():
