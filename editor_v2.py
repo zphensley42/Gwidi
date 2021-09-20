@@ -1,5 +1,7 @@
 import time
 import dearpygui.dearpygui as dpg
+import dearpygui.demo
+import dearpygui.logger as dpg_logger
 import json
 from dearpygui.demo import show_demo
 
@@ -12,19 +14,22 @@ pydirectinput.PAUSE = 0
 #     @staticmethod
 #     def press(key):
 #         keyboard.press_and_release(key)
+# import keyboard
 
 
-import keyboard
 import threading
 
+logger = dpg_logger.mvLogger()
 
-# TODO: Drawn / Loading states for when we are waiting for things to finish drawing
+
+# TODO: Drawn / Loading states for when we are waiting for things to finish drawing (inputs currently handle this, but do we need loading bars or something?)
 # TODO: Macros
-# TODO: difference between 'strung' notes and 'held' notes so that the tabs can look closer to the MIDI
-# TODO: Add measure count display
+# TODO: Do this via a menu option to add custom macros
 # TODO: Handle issues where after loading the 'mouse button' is still thought to be down
+# TODO: Probably to handle the issues require 'down' to be in a valid square before continuing the motion
+# TODO: Autosave in case of crashes
 
-# TODO: For performance, move 'sending inputs' for the playback out to a separate thread/handler?
+# TODO: For performance, move 'sending inputs' for the playback out to a separate thread/handler? (I guess they already are but the feedback loop is still too gui tied)
 
 
 class Constants:
@@ -45,9 +50,168 @@ class Constants:
         {'label': 'C1', 'key': '1'},
     ]
 
+    special_chars = [
+        {'val': 17, 'key': 'Ctrl'},
+        {'val': 18, 'key': 'Alt'},
+        {'val': 16, 'key': 'Shift'},
+        {'val': 9, 'key': 'Tab'},
+        {'val': 91, 'key': 'Winkey'},
+        {'val': 219, 'key': '['},
+        {'val': 221, 'key': ']'},
+        {'val': 186, 'key': ';'},
+        {'val': 222, 'key': '\''},
+        {'val': 188, 'key': ','},
+        {'val': 190, 'key': '.'},
+        {'val': 191, 'key': '/'},
+        {'val': 220, 'key': '\\'},
+        {'val': 189, 'key': '-'},
+        {'val': 187, 'key': '='},
+        {'val': 8, 'key': 'Backspace'},
+        {'val': 192, 'key': '`'},
+        {'val': 37, 'key': 'Left Arrow'},
+        {'val': 40, 'key': 'Down Arrow'},
+        {'val': 39, 'key': 'Right Arrow'},
+        {'val': 38, 'key': 'Up Arrow'},
+        {'val': 32, 'key': 'Space'},
+        {'val': 20, 'key': 'Caps Lock'},
+        {'val': 13, 'key': 'Enter'},
+    ]
+
+class Preferences:
+    def __init__(self):
+        self.macros = [
+            {'macro': 'play_stop', 'val': None},
+            {'macro': 'load_file_1', 'val': None},
+        ]
 
 class Elements:
     dpg_window = None
+    dpg_macros_window = None
+    dpg_button_input_window = None
+    prefs = Preferences()
+
+    @staticmethod
+    def show_macros():
+        if Elements.dpg_macros_window is None:
+            h = 400
+            w = 400
+            logger.log_debug('showing macros window: {w}'.format(w=w))
+            px = (Constants.vp_width - w) / 2
+            py = (Constants.vp_height - h) / 2
+            Elements.dpg_macros_window = dpg.add_window(label='Configure Macros', width=w, height=400, pos=[px, py], modal=True, popup=True, on_close=lambda: Elements.hide_macros())
+
+            # TODO: Load preferences from file
+            # -------------
+            # |  [ play / stop ] [ <key> ]
+            # |  [ load_file   ] [ <key> ] [ <file> ]
+            # |  <button to add more load_file macros>
+
+            with dpg.table(parent=Elements.dpg_macros_window, header_row=True) as t:
+                dpg.add_table_column(label='Action')
+                dpg.add_table_column(label='Key')
+                dpg.add_table_column(label='Param')
+
+                dpg.add_text(default_value="Play / Stop")
+                dpg.add_table_next_column()
+                str = ''
+                if Elements.prefs.macros[0]['val'] is not None:
+                    for iter, v in enumerate(Elements.prefs.macros[0]['val']):
+                        if iter > 0:
+                            str += '+'
+                        str += Elements.key_to_str(v)
+                else:
+                    str = '< >'
+                dpg.add_button(label=str, callback=Elements.show_button_input, user_data=Elements.prefs.macros[0])
+                dpg.add_table_next_column()
+                dpg.add_table_next_column()
+
+                dpg.add_text(default_value="Load File: ")
+                dpg.add_table_next_column()
+                str = ''
+                if Elements.prefs.macros[1]['val'] is not None:
+                    for iter, v in enumerate(Elements.prefs.macros[1]['val']):
+                        if iter > 0:
+                            str += '+'
+                        str += Elements.key_to_str(v)
+                else:
+                    str = '< >'
+                dpg.add_button(label=str, callback=Elements.show_button_input, user_data=Elements.prefs.macros[1])
+                dpg.add_table_next_column()
+                dpg.add_button(label="< file >")
+                dpg.add_table_next_column()
+
+
+    @staticmethod
+    def hide_macros():
+        if Elements.dpg_macros_window is not None:
+            # TODO: Save preferences to file
+
+            dpg.delete_item(Elements.dpg_macros_window)
+            Elements.dpg_macros_window = None
+
+    @staticmethod
+    def key_to_str(key):
+        entry = None
+        for sk in Constants.special_chars:
+            if sk['val'] == key:
+                entry = sk
+                break
+        if entry is None:
+            return chr(key)
+        else:
+            return entry['key']
+
+    @staticmethod
+    def update_macro_pref(d, text, new_keys):
+        if d[0] not in new_keys:
+            new_keys.append(d[0])
+
+        t_str = ''
+        for iter, d in enumerate(new_keys):
+            if iter > 0:
+                t_str += '+'
+            t_str += Elements.key_to_str(d)
+        dpg.configure_item(text, default_value=t_str)
+
+    @staticmethod
+    def close_button_input(data, new_keys):
+        logger.log_debug('close_button_input trace')
+        data['val'] = new_keys
+        if len(data['val']) <= 0:
+            data['val'] = None
+
+        if Elements.dpg_button_input_window is not None:
+            # TODO: Save preferences to file
+
+            dpg.delete_item(Elements.dpg_button_input_window)
+            Elements.dpg_button_input_window = None
+
+        dpg.delete_item(item="bi_registry")
+
+        Elements.show_macros()
+
+
+    @staticmethod
+    def show_button_input(sender):
+        # todo: store to file and re-load the macros window on close
+        kdl = None
+        px = (Constants.vp_width - 200) / 2
+        py = (Constants.vp_height - 100) / 2
+        with dpg.window(popup=True, modal=True, label='Button Input', width=200, height=100, pos=[px, py], no_close=True, no_resize=True, no_move=True, on_close=lambda: {
+            dpg.delete_item(kdl)
+        }) as w:
+            Elements.dpg_button_input_window = w
+
+            data = dpg.get_item_user_data(sender)
+            new_keys = []
+
+            t = dpg.add_text(label="Input Button: ", default_value='<>', pos=[20, 100 / 2 - 10])
+            dpg.add_button(label="OK", width=50, pos=[20, 100 - 30], callback=lambda: Elements.close_button_input(data, new_keys))
+            dpg.add_button(label="Cancel", width=50, pos=[200 - 20 - 50, 100 - 30])
+
+
+            with dpg.handler_registry(id="bi_registry"):
+                kdl = dpg.add_key_down_handler(callback=lambda s, d: Elements.update_macro_pref(d, t, new_keys))
 
 
 # Data classes
@@ -86,7 +250,6 @@ class Elements:
 #           N  S S S S S S S S S S S S S S S S
 #           N  S S S S S S S S S S S S S S S S
 
-# TODO: Some timing issues with clear / load / etc freezing the UI (and sleeps for playback doing similar when going between octaves?)
 # TODO: Perhaps make restriction on how notes work across octaves (i.e. no multiple notes at the same time across multiple octaves)
 
 
@@ -220,6 +383,8 @@ class ControlBar:
         self.bpm_ctrl = None
         self.bpm_ctrl_apply = None
 
+        self.macros_menu_btn = None
+
     def refresh(self):
         if self.control_bar is None:
             return
@@ -240,7 +405,7 @@ class ControlBar:
         return 50
 
     def cb_play(self, sender, app_data):
-        print('cb_play')
+        logger.log("cb_play trace")
 
         toggled = dpg.get_item_user_data(self.play_pause)
         toggled = not toggled
@@ -264,13 +429,13 @@ class ControlBar:
         main_window.refresh({})
 
     def cb_save(self, sender, app_data):
-        print('cb_save')
+        logger.log("cb_save trace")
         MouseStats.handlers_enabled = False
         ControlBar.file_select_purpose = 'save'
         dpg.show_item("song_sel")
 
     def cb_load(self, sender, app_data):
-        print('cb_load')
+        logger.log("cb_load trace")
         MouseStats.handlers_enabled = False
         ControlBar.file_select_purpose = 'load'
         dpg.show_item("song_sel")
@@ -295,12 +460,17 @@ class ControlBar:
 
     file_select_purpose = 'load'
     def cb_file_select(self, sender, app_data):
-        print('app_data: ', app_data)
+        logger.log("cb_file_select trace, app_data: {s}".format(s=app_data))
         MouseStats.handlers_enabled = True
         if ControlBar.file_select_purpose == 'load':
             load(app_data['file_path_name'])
         elif ControlBar.file_select_purpose == 'save':
             save(app_data['file_path_name'])
+
+    def cb_macros_btn(self, sender, app_data):
+        logger.log("cb_macros_btn trace")
+        Elements.show_macros()
+
 
     def draw(self):
         self.clear()
@@ -322,6 +492,9 @@ class ControlBar:
             self.bpm_ctrl = dpg.add_input_int(label="BPM", callback=self.cb_bpm_changed, pos=[540, 20], default_value=TimeManager.BPM, max_value=999, width=100)
             self.bpm_ctrl_apply = dpg.add_button(label="Apply", callback=self.cb_apply_bpm, pos=[680, 0], height=self.height(), width=50)
             dpg.set_item_user_data(self.bpm_ctrl, TimeManager.BPM)
+
+            # Button to open the macros window
+            self.macros_menu_btn = dpg.add_button(label="Macros", callback=self.cb_macros_btn, pos=[750, self.height() / 2], height=self.height() / 2)
 
 
 class InfoBar:
@@ -424,7 +597,7 @@ class MeasureDisplay:
     slot_height = 20
     slot_spacing = 4
 
-    octave_spacing = 20
+    octave_spacing = 40
     measure_spacing = 10
 
     def __init__(self):
@@ -460,6 +633,10 @@ class MeasureDisplay:
         x_off = measure_ind * (self.measure_width() + MeasureDisplay.measure_spacing)
         y_off = octave_ind * (self.measure_height() + MeasureDisplay.octave_spacing)
 
+        bar_pos = [x_off, y_off + self.measure_height()]
+        measure_indicator_bar = dpg.draw_rectangle(pmin=bar_pos, pmax=[bar_pos[0] + self.measure_width(), bar_pos[1] + 20], fill=[75, 75, 75, 255])
+        measure_indicator_text = dpg.draw_text(pos=[bar_pos[0] + (self.measure_width() / 2) - 40, bar_pos[1] + 2], size=14, text='Measure #{n}'.format(n=measure_ind), color=[255, 255, 255, 255])
+
         # for each octave, draw the associated rectangles for the notes / slots
         for note_iter, note in enumerate(oct.notes):
             for slot_iter, slot in enumerate(note.slots):
@@ -476,7 +653,6 @@ class MeasureDisplay:
                     color=slot.color(),
                     thickness=4,
                 )
-                # print('drawing text: ' + slot.note_key['label'])
                 t = 'o{ov}{nk}'.format(ov=slot.note_octave, nk=slot.note_key['label'])
                 rect_text = dpg.draw_text(size=11, show=(slot.activated or slot.is_held_note), color=[0, 0, 0, 255], text=t, pos=[start_x + (MeasureDisplay.slot_spacing / 2) + 1, start_y + (MeasureDisplay.slot_spacing / 2) + 2])
                 slot.set_rect(r)
@@ -524,8 +700,6 @@ class MeasureDisplay:
             slot_found.change(type)
 
     def draw(self, parent):
-        # print('drawing measure display')
-
         # draw 3 octaves
         self.draw_octave(parent, self.index, 2)
         self.draw_octave(parent, self.index, 1)
@@ -535,7 +709,6 @@ class MeasureDisplay:
 class NoteLabels:
 
     def draw(self):
-        print('drawing note labels')
         h = dpg.get_item_height(Elements.dpg_window)
         with dpg.drawlist(parent=main_window.measures.measures_panel, height=h, width=50, pos=[10, 0]) as dl:
             for i in range(3):
@@ -547,9 +720,6 @@ class NoteLabels:
                     dpg.draw_text(size=12, text=nl['label'], pos=[0, y_off])
 
 
-
-# TODO: Don't need the panels (other than the main panel used to hold MeasuresDisplay probably)
-# TODO: This will help deal with the weird spacing that the gui thinks it needs for scrolling
 class MainWindow:
 
     def __init__(self):
@@ -573,10 +743,6 @@ class MainWindow:
         global g_measures
 
         MouseStats.handlers_enabled = False
-
-        # TODO: Make refresh methods in each view class and call them here instead
-        # TODO: Use configure in those to re-draw the items instead of deleting / adding them again
-        # TODO: Hopefully this will cut down on the crashes on clear / load
 
         self.controls.refresh()
         self.info.refresh()
@@ -603,12 +769,14 @@ class MainWindow:
 
 
 def on_viewport_resize():
-    print('viewport resized: {w}x{h}'.format(w=dpg.get_viewport_width(), h=dpg.get_viewport_height()))
+    logger.log_debug('viewport resized: {w}x{h}'.format(w=dpg.get_viewport_width(), h=dpg.get_viewport_height()))
+    Constants.vp_width = dpg.get_viewport_width()
+    Constants.vp_height = dpg.get_viewport_height()
 
 
 def render_callback():
-    # print('render loop called')
     x = 1
+    # Not important, currently as the timer was moved out of this render loop
 
 
 g_measures = []
@@ -663,7 +831,7 @@ def load(fname):
     global g_measures
     global main_window
 
-    print('loading file: ', fname)
+    logger.log_info('loading file: {f}'.format(f=fname))
 
     stop_timer()
 
@@ -680,32 +848,32 @@ def load(fname):
     bpm = song_info[0:first_index]
     notes = song_info[first_index:]
 
-    print('load, bpm: ' + bpm)
-    print('load, notes: ' + notes)
+    logger.log_debug('load, bpm: {b}'.format(b=bpm))
+    logger.log_debug('load, notes: {n}'.format(n=notes))
 
     parsed_measures = [Measure()]
     measure_index = 0
     slot_index = 0
 
     while len(notes) > 0:
-        print('len: ' + str(len(notes)))
+        logger.log_debug('load, len: {l}'.format(l=len(notes)))
 
         range_begin = notes.index('[')
         range_end = notes.index(']')
         range = notes[range_begin+1:range_end]
 
-        print('parse info: {rb} {re} {r}'.format(rb=range_begin, re=range_end, r=range))
+        logger.log_debug('parse info: {rb} {re} {r}'.format(rb=range_begin, re=range_end, r=range))
 
         # do something with the info
         if slot_index >= Constants.slots_per_measure:
             measure_index += 1
             slot_index = 0
             parsed_measures.append(Measure())
-            print('new measure')
+            logger.log_debug('new measure')
 
         if range_end == (range_begin + 1):
             notes = notes[range_end + 1:]
-            print('new notes: ' + notes)
+            logger.log_debug('new notes: {n}'.format(n=notes))
 
             slot_index += 1
             continue
@@ -718,15 +886,15 @@ def load(fname):
             # second 2 chars are the note indicator
             note_ind = on[2:4]
 
-            print('oct_ind: {oi}, note_ind: {ni}'.format(oi=oct_ind, ni=note_ind))
+            logger.log_debug('oct_ind: {oi}, note_ind: {ni}'.format(oi=oct_ind, ni=note_ind))
 
             note_type = note_ind[0]
 
             oct_val = int(oct_ind[1])
             note_val = note_ind[1]
 
-            print('oct_val: {ov}, note_val: {nv}'.format(ov=oct_val, nv=note_val))
-            print('parsed_measures: ' + str(parsed_measures))
+            logger.log_debug('oct_val: {ov}, note_val: {nv}'.format(ov=oct_val, nv=note_val))
+            logger.log_debug('parsed_measures: ' + str(parsed_measures))
 
             selected_oct = None
             for o in parsed_measures[measure_index].octaves:
@@ -743,7 +911,7 @@ def load(fname):
                         break
 
         notes = notes[range_end+1:]
-        print('new notes: ' + notes)
+        logger.log_debug('new notes: {n}'.format(n=notes))
 
         slot_index += 1
 
@@ -771,7 +939,6 @@ class MouseStats:
             return
 
         self.pos = app_data
-        # print('moved: {pos}, down: {d}'.format(pos=self.pos, d=self.is_down))
 
         translated_mouse_pos = [
             self.pos[0] + dpg.get_x_scroll(main_window.measures.measures_panel),
@@ -782,7 +949,6 @@ class MouseStats:
         main_window.info.set_translated_mouse_pos(translated_mouse_pos)
 
         type = 0 if self.is_down else 1 if self.is_down_secondary else 2 if self.is_down_tertiary else -1
-        # print('type: ' + str(type))
         if self.is_down or self.is_down_secondary or self.is_down_tertiary:
             for mdisplay in main_window.measures.measure_displays:
                 mdisplay.delegate_mouse_down(translated_mouse_pos, type)
@@ -804,7 +970,7 @@ class MouseStats:
         # tertiary
         tertiary_down = dpg.is_mouse_button_down(2)
 
-        print('downed')
+        logger.log_debug('downed')
         if primary_down:
             self.is_down = True
         elif secondary_down:
@@ -820,7 +986,7 @@ class MouseStats:
         if not self.is_down and not self.is_down_secondary and not self.is_down_tertiary:
             return
 
-        print('upped')
+        logger.log_debug('upped')
         self.is_down = False
         self.is_down_secondary = False
         self.is_down_tertiary = False
@@ -911,13 +1077,12 @@ class TimeManager(threading.Thread):
             self.finished_cb()
 
     def tick(self):
-        print('TimeManager tick')
+        logger.log_debug('TimeManager tick')
         if self.alive and self.tick_cb is not None:
             self.tick_cb()
 
     def kill(self):
         self.alive = False
-        # self.join()
 
 
 play_time = -1
@@ -976,7 +1141,7 @@ def time_tick():
         # last_octave = 1
         oct_found = m.octaves[1]
 
-    print('last_octave: {lo}   prev_last_octave: {plo}'.format(lo=last_octave, plo=prev_last_octave))
+    logger.log_debug('last_octave: {lo}   prev_last_octave: {plo}'.format(lo=last_octave, plo=prev_last_octave))
 
     # 'switch' octaves as necessary
     if last_octave > prev_last_octave:
@@ -996,7 +1161,7 @@ def time_tick():
 
     # assign our scroll
     scroll_width = (main_window.measures.measure_displays[0].measure_width() * measure_index) + (slot_index * MeasureDisplay.slot_width)
-    print('scroll_width: ' + str(scroll_width) + '   mi: ' + str(measure_index) + '   si: ' + str(slot_index))
+    logger.log_debug('scroll_width: ' + str(scroll_width) + '   mi: ' + str(measure_index) + '   si: ' + str(slot_index))
     dpg.set_x_scroll(main_window.measures.measures_panel, scroll_width)
 
 
@@ -1037,16 +1202,18 @@ def stop_timer():
 def print_measures():
     for m in g_measures:
         for o in m.octaves:
-            print('octave' + str(o.octave_val))
+            logger.log_debug('octave{o}'.format(o=o.octave_val))
             for n in o.notes:
-                print('note' + str(n.note))
+                logger.log_debug('note{n}'.format(n=n.note))
                 for s in n.slots:
-                    print('slot' + str(s.activated))
+                    logger.log_debug('slot{s}'.format(s=s.activated))
 
-    print('measures: ' + str(g_measures))
+    logger.log_debug('measures: {m}'.format(m=g_measures))
 
 
 if __name__ == '__main__':
     # midi_editor.run_editor()
+    # dearpygui.demo.show_demo()
+    # dpg.start_dearpygui()
     start_editor()
     # keyboard.wait()
