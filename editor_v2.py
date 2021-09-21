@@ -54,16 +54,108 @@ def key_to_str(key):
         return entry['key']
 
 
+from playsound import playsound
+import queue
+# For now, only piano
+class SampleManager(threading.Thread):
+
+    def __init__(self):
+        self.sample_queue = queue.Queue()
+        self.alive = True
+        threading.Thread.__init__(self)
+
+    def kill(self):
+        self.alive = False
+        self.sample_queue.put(None)
+
+    def push_sample(self, sample):
+        self.sample_queue.put(sample)
+
+    def run(self):
+        while self.alive:
+            sample = self.sample_queue.get()
+            if sample is None:
+                self.sample_queue.task_done()
+                continue
+
+            if main_window.controls.sounds_enabled():
+                threading.Thread(target=play_sample, args=(sample['note'], sample['octave'],), daemon=True).start()
+            self.sample_queue.task_done()
+
+
+sample_manager = SampleManager()
+sample_manager.start()
+def play_sample(note, octave):
+    if note == 'C2':
+        if octave == 2:
+            playsound('assets/samples/piano/c7.mp3')
+        elif octave == 1:
+            playsound('assets/samples/piano/c6.mp3')
+        elif octave == 0:
+            playsound('assets/samples/piano/c5.mp3')
+    elif note == 'B':
+        if octave == 2:
+            playsound('assets/samples/piano/b6.mp3')
+        elif octave == 1:
+            playsound('assets/samples/piano/b5.mp3')
+        elif octave == 0:
+            playsound('assets/samples/piano/b4.mp3')
+    elif note == 'A':
+        if octave == 2:
+            playsound('assets/samples/piano/a6.mp3')
+        elif octave == 1:
+            playsound('assets/samples/piano/a5.mp3')
+        elif octave == 0:
+            playsound('assets/samples/piano/a4.mp3')
+    elif note == 'G':
+        if octave == 2:
+            playsound('assets/samples/piano/g6.mp3')
+        elif octave == 1:
+            playsound('assets/samples/piano/g5.mp3')
+        elif octave == 0:
+            playsound('assets/samples/piano/g4.mp3')
+    elif note == 'F':
+        if octave == 2:
+            playsound('assets/samples/piano/f6.mp3')
+        elif octave == 1:
+            playsound('assets/samples/piano/f5.mp3')
+        elif octave == 0:
+            playsound('assets/samples/piano/f4.mp3')
+    elif note == 'E':
+        if octave == 2:
+            playsound('assets/samples/piano/e6.mp3')
+        elif octave == 1:
+            playsound('assets/samples/piano/e5.mp3')
+        elif octave == 0:
+            playsound('assets/samples/piano/e4.mp3')
+    elif note == 'D':
+        if octave == 2:
+            playsound('assets/samples/piano/d6.mp3')
+        elif octave == 1:
+            playsound('assets/samples/piano/d5.mp3')
+        elif octave == 0:
+            playsound('assets/samples/piano/d4.mp3')
+    elif note == 'C1':
+        if octave == 2:
+            playsound('assets/samples/piano/c6.mp3')
+        elif octave == 1:
+            playsound('assets/samples/piano/c5.mp3')
+        elif octave == 0:
+            playsound('assets/samples/piano/c4.mp3')
+
+
+
 
 # TODO: Drawn / Loading states for when we are waiting for things to finish drawing (inputs currently handle this, but do we need loading bars or something?)
-# TODO: Macros
-# TODO: Do this via a menu option to add custom macros
 # TODO: Handle issues where after loading the 'mouse button' is still thought to be down
 # TODO: Probably to handle the issues require 'down' to be in a valid square before continuing the motion
 # TODO: Autosave in case of crashes
 # TODO: Need to make sure that assigning macros works as soon as the macro changes (and also that we are removing old assigned macros -- clear all fails, need to do individually probably)
 # TODO: For performance, move 'sending inputs' for the playback out to a separate thread/handler? (I guess they already are but the feedback loop is still too gui tied)
-
+# TODO: Disable certain controls in control bar when playing (add disable method to the bar)
+# TODO: General refactoring
+# TODO: Note playback in-app
+# TODO: Scrubbing (change play_time index for starting)
 
 class Constants:
     vp_width = 1000
@@ -112,13 +204,26 @@ class Constants:
 
 
 def macro_action_play_stop():
+    print('macro_action_play_stop')
     main_window.controls.cb_play(0, {})
 
 def macro_action_load_file(param):
+    print('macro_action_load_file: {p}'.format(p=param))
     ControlBar.file_select_purpose = 'load'
     main_window.controls.cb_file_select(0, {'file_path_name': param})
 
+assigned_macros = []
+def clear_macros():
+    global assigned_macros
+
+    for m in assigned_macros:
+        keyboard.remove_hotkey(m)
+
+    assigned_macros.clear()
+
 def assign_macro(m):
+    global assigned_macros
+
     key_string = ''
     for iter, k in enumerate(m['val']):
         if iter > 0:
@@ -129,10 +234,13 @@ def assign_macro(m):
     if action not in Preferences.action_types:
         logger.log_info('Invalid action supplied: {m}'.format(m=m))
     else:
+        print('assigning macro: {m}, keys: {k}'.format(m=m, k=key_string))
         if action == 'play_stop':
-            keyboard.add_hotkey(key_string, macro_action_play_stop, suppress=True, trigger_on_release=True)
+            handler = keyboard.add_hotkey(key_string, macro_action_play_stop, suppress=True, trigger_on_release=True)
+            assigned_macros.append(handler)
         elif action == 'load_file':
-            keyboard.add_hotkey(key_string, lambda: macro_action_load_file(m['param']), suppress=True, trigger_on_release=True)
+            handler = keyboard.add_hotkey(key_string, lambda: macro_action_load_file(m['param']), suppress=True, trigger_on_release=True)
+            assigned_macros.append(handler)
 
 
 class Preferences:
@@ -160,10 +268,10 @@ class Preferences:
             obj = json.loads(in_str)
             self.macros = obj
 
-        # assign macros
+        # clear / assign macros
+        clear_macros()
         for m in self.macros:
             assign_macro(m)
-        # keyboard.unhook_all_hotkeys()
 
 
 
@@ -453,6 +561,7 @@ class Slot:
 
     def send_inputs(self):
         pydirectinput.press(self.note_key['key'])
+        sample_manager.push_sample({'note': self.note_key['label'], 'octave': self.note_octave})
 
     def play(self):
         self.playing = True
@@ -524,8 +633,29 @@ class ControlBar:
         self.measure_cnt_ctrl_apply = None
         self.bpm_ctrl = None
         self.bpm_ctrl_apply = None
+        self.play_sounds = None
 
         self.macros_menu_btn = None
+
+    def disable(self):
+        dpg.configure_item(self.clear_but, enabled=False)
+        dpg.configure_item(self.save, enabled=False)
+        dpg.configure_item(self.load, enabled=False)
+        dpg.configure_item(self.measure_cnt_ctrl, enabled=False)
+        dpg.configure_item(self.measure_cnt_ctrl_apply, enabled=False)
+        dpg.configure_item(self.bpm_ctrl, enabled=False)
+        dpg.configure_item(self.bpm_ctrl_apply, enabled=False)
+        dpg.configure_item(self.macros_menu_btn, enabled=False)
+
+    def enable(self):
+        dpg.configure_item(self.clear_but, enabled=True)
+        dpg.configure_item(self.save, enabled=True)
+        dpg.configure_item(self.load, enabled=True)
+        dpg.configure_item(self.measure_cnt_ctrl, enabled=True)
+        dpg.configure_item(self.measure_cnt_ctrl_apply, enabled=True)
+        dpg.configure_item(self.bpm_ctrl, enabled=True)
+        dpg.configure_item(self.bpm_ctrl_apply, enabled=True)
+        dpg.configure_item(self.macros_menu_btn, enabled=True)
 
     def refresh(self):
         if self.control_bar is None:
@@ -613,6 +743,12 @@ class ControlBar:
         logger.log("cb_macros_btn trace")
         Elements.show_macros()
 
+    def cb_sounds_check_changed(self, sender, app_data):
+        dpg.set_item_user_data(sender, app_data)
+
+    def sounds_enabled(self):
+        return dpg.get_item_user_data(self.play_sounds)
+
 
     def draw(self):
         self.clear()
@@ -635,8 +771,10 @@ class ControlBar:
             self.bpm_ctrl_apply = dpg.add_button(label="Apply", callback=self.cb_apply_bpm, pos=[680, 0], height=self.height(), width=50)
             dpg.set_item_user_data(self.bpm_ctrl, TimeManager.BPM)
 
+            self.play_sounds = dpg.add_checkbox(label='Play Sounds', default_value=False, pos=[750, self.height() / 2], callback=self.cb_sounds_check_changed)
+
             # Button to open the macros window
-            self.macros_menu_btn = dpg.add_button(label="Macros", callback=self.cb_macros_btn, pos=[750, self.height() / 2], height=self.height() / 2)
+            self.macros_menu_btn = dpg.add_button(label="Macros", callback=self.cb_macros_btn, pos=[870, self.height() / 2], height=self.height() / 2)
 
 
 class InfoBar:
@@ -864,6 +1002,35 @@ class NoteLabels:
 
                     dpg.draw_text(size=12, text=nl['label'], pos=[0, y_off])
 
+class ScrubBar:
+
+    def __init__(self):
+        self.sb_dl = None
+
+    def draw(self):
+        # draw list -> rects in single row that you can select as the 'play' position
+        y_off = main_window.measures.content_height()
+        print('scrub bar width: {w}'.format(w=main_window.measures.content_width()))
+
+        self.sb_dl = dpg.add_drawlist(parent=main_window.measures.measures_panel, pos=[MeasuresDisplay.drawlist_offset, y_off + 10], width=main_window.measures.content_width(), height=MeasureDisplay.slot_height)
+        self.refresh()
+
+    def refresh(self):
+        print('scrub bar width: {w}'.format(w=main_window.measures.content_width()))
+        dpg.configure_item(self.sb_dl, width=main_window.measures.content_width())
+
+        dpg.delete_item(self.sb_dl, children_only=True)
+        slots_width_count = len(g_measures) * Constants.slots_per_measure
+        for i in range(slots_width_count):
+            r_x_off = (i * MeasureDisplay.slot_width) + (MeasureDisplay.measure_spacing * int(i / Constants.slots_per_measure))
+
+            dpg.draw_rectangle(parent=self.sb_dl, pmin=[r_x_off + (MeasureDisplay.slot_spacing / 2), 0],
+                               pmax=[r_x_off + MeasureDisplay.slot_width - (MeasureDisplay.slot_spacing / 2),
+                                     MeasureDisplay.slot_height], fill=[255, 255, 255, 255])
+
+    def delegate_click(self):
+        # Determine which slot we've clicked and apply it to the 'play_time' that we use to start the timer at
+
 
 class MainWindow:
 
@@ -872,6 +1039,7 @@ class MainWindow:
         self.info = None
         self.measures = None
         self.note_labels = None
+        self.scrub_bar = None
 
         self.controls = ControlBar()
         self.info = InfoBar()
@@ -879,6 +1047,7 @@ class MainWindow:
         init_measures(Constants.measures_count)
         self.measures.set_data(g_measures)
         self.note_labels = NoteLabels()
+        self.scrub_bar = ScrubBar()
 
     def clear(self):
         dpg.delete_item(Elements.dpg_window, children_only=True)
@@ -899,6 +1068,7 @@ class MainWindow:
             init_measures(Constants.measures_count)
         self.measures.set_data(g_measures)
         self.measures.refresh()
+        self.scrub_bar.refresh()
 
         MouseStats.handlers_enabled = True
 
@@ -909,6 +1079,7 @@ class MainWindow:
         self.info.draw()
         self.measures.draw()
         self.note_labels.draw()
+        self.scrub_bar.draw()
 
         MouseStats.handlers_enabled = True
 
@@ -971,7 +1142,6 @@ def save(fname):
             f.write(']')
 
 
-# TODO: Save / load needs to work with held notes as well
 def load(fname):
     global g_measures
     global main_window
@@ -1177,12 +1347,22 @@ def setup_global_handlers():
 
 
 main_window = None
+def window_closed():
+    # do some general cleanup
+    # print('window_closed stopping timer...')
+    # stop_timer()
+    # print('window_closed timer stopped')
+    sample_manager.kill()
+    print('window_closed sample_manager joining...')
+    sample_manager.join()
+    print('window_closed sample_manager joined')
+
 def start_editor():
     global main_window
 
     # init_measures(3)
 
-    Elements.dpg_window = dpg.add_window(id='MIDI_Editor', width=Constants.vp_width, height=Constants.vp_height)
+    Elements.dpg_window = dpg.add_window(id='MIDI_Editor', width=Constants.vp_width, height=Constants.vp_height, on_close=window_closed)
     dpg.setup_viewport()
     with dpg.handler_registry():
         setup_global_handlers()
@@ -1206,6 +1386,9 @@ def start_editor():
         dpg.render_dearpygui_frame()
 
     dpg.cleanup_dearpygui()
+
+    print('cleanup occurred')
+    window_closed()
 
 
 class TimeManager(threading.Thread):
@@ -1290,8 +1473,6 @@ def time_tick():
 
     main_window.info.set_play_index('play_time: {pt} measure_index: {mi} slot_index: {si}'.format(pt=play_time, mi=measure_index, si=slot_index))
 
-    # TODO: When playing notes, only 'switch' octave as necessary (i.e. we detect that the next note is on a different octave, don't switch back until we need to)
-
     # determine which octave has notes to play
     prev_last_octave = last_octave
     oct_found = None
@@ -1343,6 +1524,10 @@ def time_finished():
 
     last_tick_slots.clear()
 
+    # re-enable editing after finished playing
+    MouseStats.handlers_enabled = True
+    main_window.controls.enable()
+
 
 
 g_tm = None
@@ -1357,6 +1542,10 @@ def start_timer():
         g_tm.set_cb(time_tick, time_finished)
         g_tm.start()
 
+        # disable editing while playing
+        MouseStats.handlers_enabled = False
+        main_window.controls.disable()
+
 def stop_timer():
     global g_tm
     global play_time
@@ -1366,6 +1555,10 @@ def stop_timer():
         # g_tm.join()
         play_time = -1
     last_tick_slots.clear()
+
+    # re-enable editing after finished playing
+    MouseStats.handlers_enabled = True
+    main_window.controls.enable()
 
 
 def print_measures():
