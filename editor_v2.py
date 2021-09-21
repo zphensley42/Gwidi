@@ -148,11 +148,9 @@ def play_sample(note, octave):
 
 # TODO: Handle issues where after loading the 'mouse button' is still thought to be down
 # TODO: Probably to handle the issues require 'down' to be in a valid square before continuing the motion
-# TODO: Autosave in case of crashes
 # TODO: For performance, move 'sending inputs' for the playback out to a separate thread/handler? (I guess they already are but the feedback loop is still too gui tied)
 # TODO: General refactoring
-# TODO: Add display to show we are waiting the first second or so before starting playback
-# TODO: Add synchronization stuff
+# TODO: Add synchronization stuff01
 # TODO: Add .mid format parsing / import (stretch goal)
 
 class Constants:
@@ -566,7 +564,7 @@ class Slot:
 
     def play(self):
         self.playing = True
-        dpg.configure_item(self.rect, color=self.color())
+        self.item = dpg.configure_item(self.rect, color=self.color())
 
         if self.activated:
             self.send_inputs()
@@ -802,7 +800,7 @@ class ControlBar:
 
             dpg.set_item_theme(item=c, theme="controls_bar_theme")
 
-            dpg.show_style_editor()
+            # dpg.show_style_editor()
 
 
 class InfoBar:
@@ -884,6 +882,8 @@ class MeasuresDisplay:
     def draw_slots(self):
         with dpg.drawlist(parent=self.measures_panel, pos=[MeasuresDisplay.drawlist_offset, 0], width=self.content_width(),
                           height=self.content_height() + 50) as dl:
+            dpg.set_item_font(item=dl, font="note_font")
+
             self.drawlist_panel = dl
             for iteration, m in enumerate(self.measures):
                 md = MeasureDisplay()
@@ -944,6 +944,7 @@ class MeasureDisplay:
         bar_pos = [x_off, y_off + self.measure_height()]
         measure_indicator_bar = dpg.draw_rectangle(pmin=bar_pos, pmax=[bar_pos[0] + self.measure_width(), bar_pos[1] + 20], fill=[75, 75, 75, 255])
         measure_indicator_text = dpg.draw_text(pos=[bar_pos[0] + (self.measure_width() / 2) - 40, bar_pos[1] + 2], size=12, text='Measure #{n}  Octave {o}'.format(n=measure_ind + 1, o=2-octave_ind), color=[255, 255, 255, 255])
+        dpg.set_item_font(item=measure_indicator_text, font="gw2_font_def")
 
         # for each octave, draw the associated rectangles for the notes / slots
         for note_iter, note in enumerate(oct.notes):
@@ -962,8 +963,8 @@ class MeasureDisplay:
                     thickness=4,
                 )
                 t = '{nk}'.format(nk=slot.note_key['label'])
-                rect_text = dpg.draw_text(size=12, show=(slot.activated or slot.is_held_note), color=[0, 0, 0, 255], text=t, pos=[start_x + (MeasureDisplay.slot_spacing / 2) + 4, start_y + (MeasureDisplay.slot_spacing / 2) + 2])
-                dpg.set_item_font(item=rect_text, font="note_font")
+                rect_text = dpg.draw_text(size=10, show=(slot.activated or slot.is_held_note), color=[0, 0, 0, 255], text=t, pos=[start_x + (MeasureDisplay.slot_spacing / 2) + 4, start_y + (MeasureDisplay.slot_spacing / 2) + 2])
+                # dpg.set_item_font(item=rect_text, font="note_font")
                 slot.set_rect(r)
                 slot.set_rect_text(rect_text)
 
@@ -1437,7 +1438,7 @@ def start_editor():
     # add a font registry
     with dpg.font_registry():
         dpg.add_font(id='gw2_font_def', file="assets/fonts/GWTwoFont.ttf", size=13, default_font=True)
-        dpg.add_font(id='note_font', file="assets/fonts/Assa Fonts-MonsterFonts-Type Of Chalk.ttf", size=12, default_font=False)
+        dpg.add_font(id='note_font', file="assets/fonts/dogica.otf", size=10, default_font=False)
         dpg.add_font(id='gw2_font', file="assets/fonts/GWTwoFont.ttf", size=80, default_font=False)
 
     if main_window is None:
@@ -1457,6 +1458,7 @@ def start_editor():
     # dpg.set_viewport_resizable(False)
     # dpg.show_style_editor()
 
+    # dpg.show_metrics()
     while dpg.is_dearpygui_running():
         render_callback()
         dpg.render_dearpygui_frame()
