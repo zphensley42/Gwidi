@@ -146,16 +146,13 @@ def play_sample(note, octave):
 
 
 
-# TODO: Drawn / Loading states for when we are waiting for things to finish drawing (inputs currently handle this, but do we need loading bars or something?)
 # TODO: Handle issues where after loading the 'mouse button' is still thought to be down
 # TODO: Probably to handle the issues require 'down' to be in a valid square before continuing the motion
 # TODO: Autosave in case of crashes
-# TODO: Need to make sure that assigning macros works as soon as the macro changes (and also that we are removing old assigned macros -- clear all fails, need to do individually probably)
 # TODO: For performance, move 'sending inputs' for the playback out to a separate thread/handler? (I guess they already are but the feedback loop is still too gui tied)
-# TODO: Disable certain controls in control bar when playing (add disable method to the bar)
 # TODO: General refactoring
-# TODO: Note playback in-app
-# TODO: Scrubbing (change play_time index for starting)
+# TODO: Add display to show we are waiting the first second or so before starting playback
+# TODO: Add synchronization stuff
 
 class Constants:
     vp_width = 1000
@@ -213,8 +210,15 @@ def macro_action_load_file(param):
     main_window.controls.cb_file_select(0, {'file_path_name': param})
 
 assigned_macros = []
+def assign_macros():
+    # clear / assign macros
+    clear_macros()
+    for m in Elements.prefs.macros:
+        assign_macro(m)
+
 def clear_macros():
     global assigned_macros
+    print('clearing macros')
 
     for m in assigned_macros:
         keyboard.remove_hotkey(m)
@@ -267,11 +271,6 @@ class Preferences:
         if len(in_str) > 0:
             obj = json.loads(in_str)
             self.macros = obj
-
-        # clear / assign macros
-        clear_macros()
-        for m in self.macros:
-            assign_macro(m)
 
 
 
@@ -383,6 +382,7 @@ class Elements:
     dpg_button_input_window = None
     dpg_macro_table = None
     dpg_add_macro_button = None
+    dpg_save_macros_button = None
     prefs = Preferences()
 
     @staticmethod
@@ -411,12 +411,12 @@ class Elements:
             ui_mac.draw(Elements.dpg_macro_table)
 
         Elements.dpg_add_macro_button = dpg.add_button(parent=Elements.dpg_macros_window, label="Add File Macro", callback=Elements.add_file_macro)
+        Elements.dpg_save_macros_button = dpg.add_button(parent=Elements.dpg_macros_window, label="Save Macros", callback=Elements.save_macros)
 
 
     @staticmethod
     def show_macros():
         MouseStats.handlers_enabled = False
-
         if Elements.dpg_macros_window is None:
             h = 400
             w = 400
@@ -425,21 +425,19 @@ class Elements:
             py = (Constants.vp_height - h) / 2
             Elements.dpg_macros_window = dpg.add_window(label='Configure Macros', width=w, height=400, pos=[px, py], modal=True, popup=True, on_close=lambda: Elements.hide_macros())
 
+            clear_macros()  # Ensure we don't suppress while assigning macros
             Elements.prefs.load()
-
-            # -------------
-            # |  [ play / stop ] [ <key> ]
-            # |  [ load_file   ] [ <key> ] [ <file> ]
-            # |  <button to add more load_file macros>
-
             Elements.refresh_macros()
 
+    @staticmethod
+    def save_macros():
+        Elements.prefs.save()
+        assign_macros()
+        Elements.hide_macros()
 
     @staticmethod
     def hide_macros():
         if Elements.dpg_macros_window is not None:
-            Elements.prefs.save()
-
             dpg.delete_item(Elements.dpg_macro_table)
             Elements.dpg_macro_table = None
 
@@ -696,9 +694,25 @@ class ControlBar:
 
     # TODO: Just add measures / remove from current list, don't re-init
     def cb_apply(self, sender, app_data):
+        global g_measures
         cnt = dpg.get_item_user_data(self.measure_cnt_ctrl)
         Constants.measures_count = cnt
-        main_window.refresh({})
+
+        new_measures = []
+        new_measures.extend(g_measures)
+
+        diff = cnt - len(g_measures)
+        print('diff: {d}'.format(d=diff))
+        if diff > 0:
+            # add more
+            for i in range(diff):
+                new_measures.append(Measure())
+        elif diff < 0:
+            # remove from new_measures
+            new_measures = new_measures[:diff]  # slice backwards
+
+        print('apply new_measures: {n}'.format(n=new_measures))
+        main_window.refresh({'measures': new_measures})
 
     def cb_save(self, sender, app_data):
         logger.log("cb_save trace")
@@ -915,7 +929,7 @@ class MeasureDisplay:
 
         bar_pos = [x_off, y_off + self.measure_height()]
         measure_indicator_bar = dpg.draw_rectangle(pmin=bar_pos, pmax=[bar_pos[0] + self.measure_width(), bar_pos[1] + 20], fill=[75, 75, 75, 255])
-        measure_indicator_text = dpg.draw_text(pos=[bar_pos[0] + (self.measure_width() / 2) - 40, bar_pos[1] + 2], size=14, text='Measure #{n}'.format(n=measure_ind), color=[255, 255, 255, 255])
+        measure_indicator_text = dpg.draw_text(pos=[bar_pos[0] + (self.measure_width() / 2) - 40, bar_pos[1] + 2], size=14, text='Measure #{n}'.format(n=measure_ind + 1), color=[255, 255, 255, 255])
 
         # for each octave, draw the associated rectangles for the notes / slots
         for note_iter, note in enumerate(oct.notes):
@@ -978,6 +992,8 @@ class MeasureDisplay:
 
         if slot_found is not None:
             slot_found.change(type)
+            # auto-save
+            save('auto_save.gwm.tmp')
             return True
 
         return False
@@ -1003,9 +1019,10 @@ class NoteLabels:
                     dpg.draw_text(size=12, text=nl['label'], pos=[0, y_off])
 
 class ScrubBar:
-
     def __init__(self):
         self.sb_dl = None
+        self.rect_positions = []
+
 
     def draw(self):
         # draw list -> rects in single row that you can select as the 'play' position
@@ -1016,6 +1033,7 @@ class ScrubBar:
         self.refresh()
 
     def refresh(self):
+        global play_time_start
         print('scrub bar width: {w}'.format(w=main_window.measures.content_width()))
         dpg.configure_item(self.sb_dl, width=main_window.measures.content_width())
 
@@ -1024,12 +1042,45 @@ class ScrubBar:
         for i in range(slots_width_count):
             r_x_off = (i * MeasureDisplay.slot_width) + (MeasureDisplay.measure_spacing * int(i / Constants.slots_per_measure))
 
-            dpg.draw_rectangle(parent=self.sb_dl, pmin=[r_x_off + (MeasureDisplay.slot_spacing / 2), 0],
-                               pmax=[r_x_off + MeasureDisplay.slot_width - (MeasureDisplay.slot_spacing / 2),
-                                     MeasureDisplay.slot_height], fill=[255, 255, 255, 255])
+            r = {
+                "index": i,
+                "pmin": [r_x_off + (MeasureDisplay.slot_spacing / 2), 0],
+                "pmax": [r_x_off + MeasureDisplay.slot_width - (MeasureDisplay.slot_spacing / 2), MeasureDisplay.slot_height],
+            }
+            self.rect_positions.append(r)
+
+            fill = [255, 255, 255, 255]
+            if i == (play_time_start + 1): # +1 b/c we assign to -1 to hit the proper index on first tick
+                fill = [255, 0, 0, 255]
+            dpg.draw_rectangle(parent=self.sb_dl, pmin=r['pmin'], pmax=r['pmax'], fill=fill)
+
+    def slot_clicked(self, index):
+        global play_time_start
+        play_time_start = index - 1 # -1 b/c we want the first 'tick' to hit this index
+        self.refresh()
 
     def delegate_click(self):
         # Determine which slot we've clicked and apply it to the 'play_time' that we use to start the timer at
+        print('delegate_click')
+
+        pos = dpg.get_mouse_pos()
+        translated_mouse_pos = [
+            pos[0] + dpg.get_x_scroll(main_window.measures.measures_panel) - MeasuresDisplay.drawlist_offset,
+            pos[1] + dpg.get_y_scroll(main_window.measures.measures_panel) - dpg.get_item_pos(self.sb_dl)[1],
+        ]
+        print('dg pos: {p}'.format(p=translated_mouse_pos))
+
+        for rect in self.rect_positions:
+            pmin = rect['pmin']
+            pmax = rect['pmax']
+            in_x = pmin[0] <= translated_mouse_pos[0] <= pmax[0]
+            in_y = pmin[1] <= translated_mouse_pos[1] <= pmax[1]
+            if in_x and in_y:
+                # found, use this index in the callback
+                self.slot_clicked(rect['index'])
+                return True
+
+        return False
 
 
 class MainWindow:
@@ -1066,6 +1117,9 @@ class MainWindow:
             g_measures = opts['measures']
         else:
             init_measures(Constants.measures_count)
+
+        print('main_window refresh opts: {o}'.format(o=opts))
+
         self.measures.set_data(g_measures)
         self.measures.refresh()
         self.scrub_bar.refresh()
@@ -1096,21 +1150,11 @@ def render_callback():
 
 
 g_measures = []
-g_slots = []
 def init_measures(count):
     global g_measures
-    global g_slots
     g_measures.clear()
     for i in range(count):
         g_measures.append(Measure())
-
-    # make a list of slots for access elsewhere (like clearing)
-    g_slots.clear()
-    for m in g_measures:
-        for o in m.octaves:
-            for n in o.notes:
-                for s in n.slots:
-                    g_slots.append(s)
 
 def save(fname):
     global g_measures
@@ -1234,6 +1278,8 @@ def load(fname):
     Constants.measures_count = len(parsed_measures)
     TimeManager.BPM = int(bpm)
 
+    global play_time_start
+    play_time_start = -1
     main_window.refresh({'measures': parsed_measures})
     print_measures()
 
@@ -1289,7 +1335,7 @@ class MouseStats:
 
 
     def downed(self, sender, app_data):
-        if not MouseStats.handlers_enabled:
+        if not MouseStats.handlers_enabled or MouseStats.is_temp_disabled:
             return
         if self.is_down or self.is_down_secondary or self.is_down_tertiary:
             return
@@ -1310,6 +1356,11 @@ class MouseStats:
             self.is_down_secondary = True
         elif tertiary_down:
             self.is_down_tertiary = True
+
+        # first, detect if we are attempting to scrub
+        handled = main_window.scrub_bar.delegate_click()
+        if handled:
+            return
 
         detected = self.moved(sender, self.pos)
         if not detected:
@@ -1371,6 +1422,9 @@ def start_editor():
     if main_window is None:
         main_window = MainWindow()
         main_window.draw()
+
+        # load any currently assigned macros
+        assign_macros()
 
     fd = dpg.add_file_dialog(modal=True, show=False, callback=main_window.controls.cb_file_select, id="song_sel")
     dpg.add_file_extension(extension=".gwm", parent=fd)
@@ -1437,6 +1491,7 @@ class TimeManager(threading.Thread):
         self.alive = False
 
 
+play_time_start = -1
 play_time = -1
 last_tick_slots = []
 last_octave = 1
@@ -1444,6 +1499,7 @@ def time_tick():
     global last_tick_slots
     global last_octave
     global play_time
+    global play_time_start
     global g_measures
     global g_tm
 
@@ -1534,10 +1590,11 @@ g_tm = None
 def start_timer():
     global g_tm
     global play_time
+    global play_time_start
     global last_octave
     if g_tm is None or not g_tm.alive:
         last_octave = 1
-        play_time = -1
+        play_time = play_time_start
         g_tm = TimeManager()
         g_tm.set_cb(time_tick, time_finished)
         g_tm.start()
@@ -1553,7 +1610,7 @@ def stop_timer():
     if g_tm is not None:
         g_tm.kill()
         # g_tm.join()
-        play_time = -1
+        play_time = play_time_start
     last_tick_slots.clear()
 
     # re-enable editing after finished playing
