@@ -19,7 +19,26 @@ pydirectinput.PAUSE = 0
 
 import threading
 
-logger = dpg_logger.mvLogger()
+class LoggerWrapper:
+    def __init__(self, enabled):
+        self.enabled = enabled
+        if enabled:
+            self.impl = dpg_logger.mvLogger()
+
+    def log(self, m):
+        if self.enabled:
+            self.impl.log(m)
+
+    def log_debug(self, m):
+        if self.enabled:
+            self.impl.log_debug(m)
+
+    def log_info(self, m):
+        if self.enabled:
+            self.impl.log_info(m)
+
+logger = LoggerWrapper(True)
+
 
 
 # TODO: Drawn / Loading states for when we are waiting for things to finish drawing (inputs currently handle this, but do we need loading bars or something?)
@@ -80,18 +99,173 @@ class Constants:
 class Preferences:
     def __init__(self):
         self.macros = [
-            {'macro': 'play_stop', 'val': None},
-            {'macro': 'load_file_1', 'val': None},
+            {'macro': 'Play / Stop', 'val': None, 'param': None, 'param_enabled': False},
+            {'macro': 'Load File 1', 'val': None, 'param': '<file>', 'param_enabled': True},
         ]
+
+    def save(self):
+        out = open('prefs.json', mode='w')
+        out.write(json.dumps(self.macros))
+
+    def load(self):
+        input = open('prefs.json', mode='r')
+        in_str = input.read()
+        if len(in_str) > 0:
+            obj = json.loads(in_str)
+            self.macros = obj
+
+
+class UIMacro:
+
+    # Purpose is to update the 'val' property of preference with whatever is input on the 'dialog'
+    def update_param(self, sender, data):
+        print('update_param data={d}'.format(d=data))
+        dpg.set_item_user_data(sender, data)
+
+    def save_param(self, new_param):
+        self.preference['param'] = new_param
+        self.close_input(False)
+
+    def show_param_input(self):
+        px = (Constants.vp_width - 200) / 2
+        py = (Constants.vp_height - 100) / 2
+
+        with dpg.window(popup=True, modal=True, label='Param Input', width=200, height=100, pos=[px, py],
+                        no_close=True, no_resize=False, no_move=False) as w:
+            Elements.dpg_button_input_window = w
+
+            t = dpg.add_input_text(default_value=self.preference['param'], pos=[20, 100 / 2 - 10], callback=self.update_param)
+            dpg.add_button(label="OK", width=50, pos=[20, 100 - 30], callback=lambda: self.save_param(dpg.get_item_user_data(t)))
+            dpg.add_button(label="Cancel", width=50, pos=[200 - 20 - 50, 100 - 30],
+                           callback=lambda: self.save_param(self.preference['param']))
+
+
+
+
+
+
+
+
+
+
+    # Purpose is to update the 'val' property of preference with whatever is input on the 'dialog'
+    def update_keys(self, new_keys, data, text):
+        key = data[0]
+        if key not in new_keys:
+            new_keys.append(key)
+
+        s = ''
+        for iter, k in enumerate(new_keys):
+            if iter > 0:
+                s += '+'
+            s += Elements.key_to_str(k)
+
+        dpg.configure_item(text, default_value=s)
+
+    def save_keys(self, new_keys):
+        self.preference['val'] = new_keys
+
+        self.close_input(True)
+
+    def show_key_input(self):
+        kdl = None
+        px = (Constants.vp_width - 200) / 2
+        py = (Constants.vp_height - 100) / 2
+
+        new_keys = []
+
+        with dpg.window(popup=True, modal=True, label='Key Input', width=200, height=100, pos=[px, py], no_close=True, no_resize=True, no_move=True, on_close=lambda: {
+            # Clean up the listener on close
+            dpg.delete_item(kdl)
+        }) as w:
+            Elements.dpg_button_input_window = w
+
+            t = dpg.add_text(default_value='<>', pos=[20, 100 / 2 - 10])
+            dpg.add_button(label="OK", width=50, pos=[20, 100 - 30], callback=lambda: self.save_keys(new_keys))
+            dpg.add_button(label="Cancel", width=50, pos=[200 - 20 - 50, 100 - 30], callback=lambda: self.save_keys(self.preference['val']))
+
+            with dpg.handler_registry(id="bi_registry"):
+                kdl = dpg.add_key_down_handler(callback=lambda s, d: self.update_keys(new_keys, d, t))
+
+    def close_input(self, do_delete_registry):
+        logger.log_debug('close_key_input trace')
+
+        if Elements.dpg_button_input_window is not None:
+            dpg.delete_item(Elements.dpg_button_input_window)
+            Elements.dpg_button_input_window = None
+
+        if do_delete_registry:
+            dpg.delete_item(item="bi_registry")
+
+        Elements.prefs.save()
+        Elements.show_macros()
+
+
+    # action -> lambda to call on macro usage (i.e. when it is activated)
+    def __init__(self, action, preference):
+        self.action = action
+        self.preference = preference
+
+        key_str = ''
+        if self.preference['val'] is not None:
+            for iter, v in enumerate(self.preference['val']):
+                if iter > 0:
+                    key_str += '+'
+                key_str += Elements.key_to_str(v)
+        else:
+            key_str = '< >'
+        self.key = key_str
+
+    def draw(self, parent):
+        dpg.add_text(parent=parent, default_value=self.preference['macro'])
+        dpg.add_table_next_column(parent=parent)
+
+        dpg.add_button(parent=parent, label=self.key, callback=self.show_key_input)
+        dpg.add_table_next_column(parent=parent)
+
+        dpg.add_button(parent=parent, label=self.preference['param'], callback=self.show_param_input, show=self.preference['param_enabled'])
+        dpg.add_table_next_column(parent=parent)
 
 class Elements:
     dpg_window = None
     dpg_macros_window = None
     dpg_button_input_window = None
+    dpg_macro_table = None
+    dpg_add_macro_button = None
     prefs = Preferences()
 
     @staticmethod
+    def add_file_macro():
+        f_macro_num = len(Elements.prefs.macros)
+        new_m = {
+            'macro': 'Load File {n}'.format(n=f_macro_num), 'val': [], 'param': '<file>', 'param_enabled': True
+        }
+        Elements.prefs.macros.append(new_m)
+        Elements.refresh_macros()
+
+    @staticmethod
+    def refresh_macros():
+        if Elements.dpg_macro_table is not None:
+            dpg.delete_item(Elements.dpg_macro_table)
+        if Elements.dpg_add_macro_button is not None:
+            dpg.delete_item(Elements.dpg_add_macro_button)
+
+        Elements.dpg_macro_table = dpg.add_table(parent=Elements.dpg_macros_window, header_row=True)
+        dpg.add_table_column(parent=Elements.dpg_macro_table, label='Action')
+        dpg.add_table_column(parent=Elements.dpg_macro_table, label='Key')
+        dpg.add_table_column(parent=Elements.dpg_macro_table, label='Param')
+
+        for m in Elements.prefs.macros:
+            ui_mac = UIMacro(lambda: print('macro action'), m)
+            ui_mac.draw(Elements.dpg_macro_table)
+
+        Elements.dpg_add_macro_button = dpg.add_button(parent=Elements.dpg_macros_window, label="Add File Macro", callback=Elements.add_file_macro)
+
+
+    @staticmethod
     def show_macros():
+        MouseStats.handlers_enabled = False
+
         if Elements.dpg_macros_window is None:
             h = 400
             w = 400
@@ -100,54 +274,31 @@ class Elements:
             py = (Constants.vp_height - h) / 2
             Elements.dpg_macros_window = dpg.add_window(label='Configure Macros', width=w, height=400, pos=[px, py], modal=True, popup=True, on_close=lambda: Elements.hide_macros())
 
-            # TODO: Load preferences from file
+            Elements.prefs.load()
+
             # -------------
             # |  [ play / stop ] [ <key> ]
             # |  [ load_file   ] [ <key> ] [ <file> ]
             # |  <button to add more load_file macros>
 
-            with dpg.table(parent=Elements.dpg_macros_window, header_row=True) as t:
-                dpg.add_table_column(label='Action')
-                dpg.add_table_column(label='Key')
-                dpg.add_table_column(label='Param')
-
-                dpg.add_text(default_value="Play / Stop")
-                dpg.add_table_next_column()
-                str = ''
-                if Elements.prefs.macros[0]['val'] is not None:
-                    for iter, v in enumerate(Elements.prefs.macros[0]['val']):
-                        if iter > 0:
-                            str += '+'
-                        str += Elements.key_to_str(v)
-                else:
-                    str = '< >'
-                dpg.add_button(label=str, callback=Elements.show_button_input, user_data=Elements.prefs.macros[0])
-                dpg.add_table_next_column()
-                dpg.add_table_next_column()
-
-                dpg.add_text(default_value="Load File: ")
-                dpg.add_table_next_column()
-                str = ''
-                if Elements.prefs.macros[1]['val'] is not None:
-                    for iter, v in enumerate(Elements.prefs.macros[1]['val']):
-                        if iter > 0:
-                            str += '+'
-                        str += Elements.key_to_str(v)
-                else:
-                    str = '< >'
-                dpg.add_button(label=str, callback=Elements.show_button_input, user_data=Elements.prefs.macros[1])
-                dpg.add_table_next_column()
-                dpg.add_button(label="< file >")
-                dpg.add_table_next_column()
+            Elements.refresh_macros()
 
 
     @staticmethod
     def hide_macros():
         if Elements.dpg_macros_window is not None:
-            # TODO: Save preferences to file
+            Elements.prefs.save()
+
+            dpg.delete_item(Elements.dpg_macro_table)
+            Elements.dpg_macro_table = None
+
+            dpg.delete_item(Elements.dpg_add_macro_button)
+            Elements.dpg_add_macro_button = None
 
             dpg.delete_item(Elements.dpg_macros_window)
             Elements.dpg_macros_window = None
+
+        MouseStats.handlers_enabled = True
 
     @staticmethod
     def key_to_str(key):
@@ -172,46 +323,6 @@ class Elements:
                 t_str += '+'
             t_str += Elements.key_to_str(d)
         dpg.configure_item(text, default_value=t_str)
-
-    @staticmethod
-    def close_button_input(data, new_keys):
-        logger.log_debug('close_button_input trace')
-        data['val'] = new_keys
-        if len(data['val']) <= 0:
-            data['val'] = None
-
-        if Elements.dpg_button_input_window is not None:
-            # TODO: Save preferences to file
-
-            dpg.delete_item(Elements.dpg_button_input_window)
-            Elements.dpg_button_input_window = None
-
-        dpg.delete_item(item="bi_registry")
-
-        Elements.show_macros()
-
-
-    @staticmethod
-    def show_button_input(sender):
-        # todo: store to file and re-load the macros window on close
-        kdl = None
-        px = (Constants.vp_width - 200) / 2
-        py = (Constants.vp_height - 100) / 2
-        with dpg.window(popup=True, modal=True, label='Button Input', width=200, height=100, pos=[px, py], no_close=True, no_resize=True, no_move=True, on_close=lambda: {
-            dpg.delete_item(kdl)
-        }) as w:
-            Elements.dpg_button_input_window = w
-
-            data = dpg.get_item_user_data(sender)
-            new_keys = []
-
-            t = dpg.add_text(label="Input Button: ", default_value='<>', pos=[20, 100 / 2 - 10])
-            dpg.add_button(label="OK", width=50, pos=[20, 100 - 30], callback=lambda: Elements.close_button_input(data, new_keys))
-            dpg.add_button(label="Cancel", width=50, pos=[200 - 20 - 50, 100 - 30])
-
-
-            with dpg.handler_registry(id="bi_registry"):
-                kdl = dpg.add_key_down_handler(callback=lambda s, d: Elements.update_macro_pref(d, t, new_keys))
 
 
 # Data classes
@@ -698,6 +809,9 @@ class MeasureDisplay:
 
         if slot_found is not None:
             slot_found.change(type)
+            return True
+
+        return False
 
     def draw(self, parent):
         # draw 3 octaves
@@ -923,10 +1037,12 @@ def load(fname):
     print_measures()
 
 
+# Not sure if I am fully on board with the mouse temp disable stuff, but it is preventing errors with dialogs / notes for now (i.e. not accidentally writing notes when not meaning to)
 class MouseStats:
     is_down = False
     is_down_secondary = False
     is_down_tertiary = False
+    is_temp_disabled = False
     pos = None
 
     handlers_enabled = False
@@ -935,8 +1051,9 @@ class MouseStats:
         global g_measures
         global main_window
 
-        if not MouseStats.handlers_enabled:
-            return
+        if not MouseStats.handlers_enabled or MouseStats.is_temp_disabled:
+            logger.log_debug('moved disabled')
+            return False
 
         self.pos = app_data
 
@@ -950,8 +1067,18 @@ class MouseStats:
 
         type = 0 if self.is_down else 1 if self.is_down_secondary else 2 if self.is_down_tertiary else -1
         if self.is_down or self.is_down_secondary or self.is_down_tertiary:
+            found = False
             for mdisplay in main_window.measures.measure_displays:
-                mdisplay.delegate_mouse_down(translated_mouse_pos, type)
+                found = mdisplay.delegate_mouse_down(translated_mouse_pos, type)
+                if found:
+                    logger.log_debug('found, ret true')
+                    return True
+            if not found:
+                MouseStats.is_temp_disabled = True
+
+
+        logger.log_debug('not found, ret false')
+        return False
 
 
 
@@ -978,9 +1105,15 @@ class MouseStats:
         elif tertiary_down:
             self.is_down_tertiary = True
 
-        self.moved(sender, self.pos)
+        detected = self.moved(sender, self.pos)
+        if not detected:
+            MouseStats.is_temp_disabled = True
+            logger.log_debug('temp_disabled true')
 
     def upped(self):
+        MouseStats.is_temp_disabled = False
+        logger.log_debug('temp_disabled false')
+
         if not MouseStats.handlers_enabled:
             return
         if not self.is_down and not self.is_down_secondary and not self.is_down_tertiary:
