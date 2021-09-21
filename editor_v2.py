@@ -14,7 +14,7 @@ pydirectinput.PAUSE = 0
 #     @staticmethod
 #     def press(key):
 #         keyboard.press_and_release(key)
-# import keyboard
+import keyboard
 
 
 import threading
@@ -37,7 +37,21 @@ class LoggerWrapper:
         if self.enabled:
             self.impl.log_info(m)
 
-logger = LoggerWrapper(True)
+logger = LoggerWrapper(False)
+
+
+
+# Utility
+def key_to_str(key):
+    entry = None
+    for sk in Constants.special_chars:
+        if sk['val'] == key:
+            entry = sk
+            break
+    if entry is None:
+        return chr(key)
+    else:
+        return entry['key']
 
 
 
@@ -47,7 +61,7 @@ logger = LoggerWrapper(True)
 # TODO: Handle issues where after loading the 'mouse button' is still thought to be down
 # TODO: Probably to handle the issues require 'down' to be in a valid square before continuing the motion
 # TODO: Autosave in case of crashes
-
+# TODO: Need to make sure that assigning macros works as soon as the macro changes (and also that we are removing old assigned macros -- clear all fails, need to do individually probably)
 # TODO: For performance, move 'sending inputs' for the playback out to a separate thread/handler? (I guess they already are but the feedback loop is still too gui tied)
 
 
@@ -96,12 +110,44 @@ class Constants:
         {'val': 13, 'key': 'Enter'},
     ]
 
+
+def macro_action_play_stop():
+    main_window.controls.cb_play(0, {})
+
+def macro_action_load_file(param):
+    ControlBar.file_select_purpose = 'load'
+    main_window.controls.cb_file_select(0, {'file_path_name': param})
+
+def assign_macro(m):
+    key_string = ''
+    for iter, k in enumerate(m['val']):
+        if iter > 0:
+            key_string += '+'
+        key_string += key_to_str(k).lower()
+
+    action = m['action']
+    if action not in Preferences.action_types:
+        logger.log_info('Invalid action supplied: {m}'.format(m=m))
+    else:
+        if action == 'play_stop':
+            keyboard.add_hotkey(key_string, macro_action_play_stop, suppress=True, trigger_on_release=True)
+        elif action == 'load_file':
+            keyboard.add_hotkey(key_string, lambda: macro_action_load_file(m['param']), suppress=True, trigger_on_release=True)
+
+
 class Preferences:
+    action_types = [
+        'play_stop',
+        'load_file'
+    ]
+
     def __init__(self):
         self.macros = [
-            {'macro': 'Play / Stop', 'val': None, 'param': None, 'param_enabled': False},
-            {'macro': 'Load File 1', 'val': None, 'param': '<file>', 'param_enabled': True},
+            {'macro': 'Play / Stop', 'val': None, 'param': None, 'param_enabled': False, 'action': 'play_stop'},
+            {'macro': 'Load File 1', 'val': None, 'param': '<file>', 'param_enabled': True, 'action': 'load_file'},
         ]
+
+        self.load()
 
     def save(self):
         out = open('prefs.json', mode='w')
@@ -114,10 +160,15 @@ class Preferences:
             obj = json.loads(in_str)
             self.macros = obj
 
+        # assign macros
+        for m in self.macros:
+            assign_macro(m)
+        # keyboard.unhook_all_hotkeys()
+
+
 
 class UIMacro:
-
-    # Purpose is to update the 'val' property of preference with whatever is input on the 'dialog'
+    # Purpose is to update the 'param' property of preference with whatever is input on the 'dialog'
     def update_param(self, sender, data):
         print('update_param data={d}'.format(d=data))
         dpg.set_item_user_data(sender, data)
@@ -140,14 +191,6 @@ class UIMacro:
                            callback=lambda: self.save_param(self.preference['param']))
 
 
-
-
-
-
-
-
-
-
     # Purpose is to update the 'val' property of preference with whatever is input on the 'dialog'
     def update_keys(self, new_keys, data, text):
         key = data[0]
@@ -158,7 +201,7 @@ class UIMacro:
         for iter, k in enumerate(new_keys):
             if iter > 0:
                 s += '+'
-            s += Elements.key_to_str(k)
+            s += key_to_str(k)
 
         dpg.configure_item(text, default_value=s)
 
@@ -211,7 +254,7 @@ class UIMacro:
             for iter, v in enumerate(self.preference['val']):
                 if iter > 0:
                     key_str += '+'
-                key_str += Elements.key_to_str(v)
+                key_str += key_to_str(v)
         else:
             key_str = '< >'
         self.key = key_str
@@ -238,7 +281,7 @@ class Elements:
     def add_file_macro():
         f_macro_num = len(Elements.prefs.macros)
         new_m = {
-            'macro': 'Load File {n}'.format(n=f_macro_num), 'val': [], 'param': '<file>', 'param_enabled': True
+            'macro': 'Load File {n}'.format(n=f_macro_num), 'val': [], 'param': '<file>', 'param_enabled': True, 'action': 'load_file'
         }
         Elements.prefs.macros.append(new_m)
         Elements.refresh_macros()
@@ -301,18 +344,6 @@ class Elements:
         MouseStats.handlers_enabled = True
 
     @staticmethod
-    def key_to_str(key):
-        entry = None
-        for sk in Constants.special_chars:
-            if sk['val'] == key:
-                entry = sk
-                break
-        if entry is None:
-            return chr(key)
-        else:
-            return entry['key']
-
-    @staticmethod
     def update_macro_pref(d, text, new_keys):
         if d[0] not in new_keys:
             new_keys.append(d[0])
@@ -321,7 +352,7 @@ class Elements:
         for iter, d in enumerate(new_keys):
             if iter > 0:
                 t_str += '+'
-            t_str += Elements.key_to_str(d)
+            t_str += key_to_str(d)
         dpg.configure_item(text, default_value=t_str)
 
 
@@ -1051,6 +1082,11 @@ class MouseStats:
         global g_measures
         global main_window
 
+        # any_down = dpg.is_mouse_button_down(0) or dpg.is_mouse_button_down(1) or dpg.is_mouse_button_down(2)
+        # if not any_down or not app_data:
+        #     self.upped()
+        #     return False
+
         if not MouseStats.handlers_enabled or MouseStats.is_temp_disabled:
             logger.log_debug('moved disabled')
             return False
@@ -1349,4 +1385,3 @@ if __name__ == '__main__':
     # dearpygui.demo.show_demo()
     # dpg.start_dearpygui()
     start_editor()
-    # keyboard.wait()
