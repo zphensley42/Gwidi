@@ -153,6 +153,7 @@ def play_sample(note, octave):
 # TODO: General refactoring
 # TODO: Add display to show we are waiting the first second or so before starting playback
 # TODO: Add synchronization stuff
+# TODO: Add .mid format parsing / import (stretch goal)
 
 class Constants:
     vp_width = 1000
@@ -533,9 +534,11 @@ class Slot:
         if self.activated and type == 0:
             self.is_held_note = True
             self.activated = False
+            self.change_triggered = True
         elif self.is_held_note and type == 0:
             self.activated = True
             self.is_held_note = False
+            self.change_triggered = True
         else:
             self.activated = (type == 0)
             self.change_triggered = True
@@ -768,27 +771,38 @@ class ControlBar:
         self.clear()
 
         with dpg.child(parent=Elements.dpg_window, pos=[0, 0], autosize_x=True, autosize_y=True) as c:
+
             self.control_bar = c
-            self.play_pause = dpg.add_button(label="Play", callback=self.cb_play, pos=[0, 0], height=self.height(), width=50)
+            self.play_pause = dpg.add_button(label="Play", callback=self.cb_play, pos=[0, 0], height=self.height() / 2, width=50)
             dpg.set_item_user_data(self.play_pause, False)
 
-            self.clear_but = dpg.add_button(label="Clear", callback=self.cb_clear, pos=[60, 0], height=self.height(), width=50)
+            self.clear_but = dpg.add_button(label="Clear", callback=self.cb_clear, pos=[60, 0], height=self.height() / 2, width=50)
 
-            self.save = dpg.add_button(label="Save", callback=self.cb_save, pos=[120, 0], height=self.height(), width=50)
-            self.load = dpg.add_button(label="Load", callback=self.cb_load, pos=[180, 0], height=self.height(), width=50)
+            self.save = dpg.add_button(label="Save", callback=self.cb_save, pos=[120, 0], height=self.height() / 2, width=50)
+            self.load = dpg.add_button(label="Load", callback=self.cb_load, pos=[180, 0], height=self.height() / 2, width=50)
 
-            self.measure_cnt_ctrl = dpg.add_input_int(label="# of Measures", callback=self.cb_cnt_changed, pos=[260, 20], default_value=Constants.measures_count, width=100)
-            self.measure_cnt_ctrl_apply = dpg.add_button(label="Apply", callback=self.cb_apply, pos=[470, 0], height=self.height(), width=50)
+            self.measure_cnt_ctrl = dpg.add_input_int(label="# of Measures", callback=self.cb_cnt_changed, pos=[260, 3], default_value=Constants.measures_count, width=100)
+            self.measure_cnt_ctrl_apply = dpg.add_button(label="Apply", callback=self.cb_apply, pos=[450, 0], height=self.height() / 2, width=50)
             dpg.set_item_user_data(self.measure_cnt_ctrl, Constants.measures_count)
 
-            self.bpm_ctrl = dpg.add_input_int(label="BPM", callback=self.cb_bpm_changed, pos=[540, 20], default_value=TimeManager.BPM, max_value=999, width=100)
-            self.bpm_ctrl_apply = dpg.add_button(label="Apply", callback=self.cb_apply_bpm, pos=[680, 0], height=self.height(), width=50)
+            self.bpm_ctrl = dpg.add_input_int(label="BPM", callback=self.cb_bpm_changed, pos=[540, 3], default_value=TimeManager.BPM, max_value=999, width=100)
+            self.bpm_ctrl_apply = dpg.add_button(label="Apply", callback=self.cb_apply_bpm, pos=[670, 0], height=self.height() / 2, width=50)
             dpg.set_item_user_data(self.bpm_ctrl, TimeManager.BPM)
 
-            self.play_sounds = dpg.add_checkbox(label='Play Sounds', default_value=False, pos=[750, self.height() / 2], callback=self.cb_sounds_check_changed)
+            self.play_sounds = dpg.add_checkbox(label='Play Sounds', default_value=False, pos=[750, 3], callback=self.cb_sounds_check_changed)
 
             # Button to open the macros window
-            self.macros_menu_btn = dpg.add_button(label="Macros", callback=self.cb_macros_btn, pos=[870, self.height() / 2], height=self.height() / 2)
+            self.macros_menu_btn = dpg.add_button(label="Macros", callback=self.cb_macros_btn, pos=[870, 0], height=self.height() / 2)
+
+            with dpg.theme(id="controls_bar_theme"):
+                dpg.add_theme_color(target=dpg.mvThemeCol_ChildBg, value=[31, 15, 16, 255], category=dpg.mvThemeCat_Core)
+                dpg.add_theme_color(target=dpg.mvThemeCol_Button, value=[110, 21, 15, 255], category=dpg.mvThemeCat_Core)
+                dpg.add_theme_color(target=dpg.mvThemeCol_ButtonHovered, value=[165, 35, 32, 255], category=dpg.mvThemeCat_Core)
+                dpg.add_theme_color(target=dpg.mvThemeCol_ButtonActive, value=[90, 15, 12, 255], category=dpg.mvThemeCat_Core)
+
+            dpg.set_item_theme(item=c, theme="controls_bar_theme")
+
+            dpg.show_style_editor()
 
 
 class InfoBar:
@@ -887,8 +901,8 @@ class MeasuresDisplay:
 
 
 class MeasureDisplay:
-    slot_width = 30
-    slot_height = 20
+    slot_width = 35
+    slot_height = 25
     slot_spacing = 4
 
     octave_spacing = 40
@@ -929,7 +943,7 @@ class MeasureDisplay:
 
         bar_pos = [x_off, y_off + self.measure_height()]
         measure_indicator_bar = dpg.draw_rectangle(pmin=bar_pos, pmax=[bar_pos[0] + self.measure_width(), bar_pos[1] + 20], fill=[75, 75, 75, 255])
-        measure_indicator_text = dpg.draw_text(pos=[bar_pos[0] + (self.measure_width() / 2) - 40, bar_pos[1] + 2], size=14, text='Measure #{n}'.format(n=measure_ind + 1), color=[255, 255, 255, 255])
+        measure_indicator_text = dpg.draw_text(pos=[bar_pos[0] + (self.measure_width() / 2) - 40, bar_pos[1] + 2], size=12, text='Measure #{n}  Octave {o}'.format(n=measure_ind + 1, o=2-octave_ind), color=[255, 255, 255, 255])
 
         # for each octave, draw the associated rectangles for the notes / slots
         for note_iter, note in enumerate(oct.notes):
@@ -947,8 +961,9 @@ class MeasureDisplay:
                     color=slot.color(),
                     thickness=4,
                 )
-                t = 'o{ov}{nk}'.format(ov=slot.note_octave, nk=slot.note_key['label'])
-                rect_text = dpg.draw_text(size=11, show=(slot.activated or slot.is_held_note), color=[0, 0, 0, 255], text=t, pos=[start_x + (MeasureDisplay.slot_spacing / 2) + 1, start_y + (MeasureDisplay.slot_spacing / 2) + 2])
+                t = '{nk}'.format(nk=slot.note_key['label'])
+                rect_text = dpg.draw_text(size=12, show=(slot.activated or slot.is_held_note), color=[0, 0, 0, 255], text=t, pos=[start_x + (MeasureDisplay.slot_spacing / 2) + 4, start_y + (MeasureDisplay.slot_spacing / 2) + 2])
+                dpg.set_item_font(item=rect_text, font="note_font")
                 slot.set_rect(r)
                 slot.set_rect_text(rect_text)
 
@@ -1329,7 +1344,7 @@ class MouseStats:
                 MouseStats.is_temp_disabled = True
 
 
-        logger.log_debug('not found, ret false')
+        # logger.log_debug('not found, ret false')
         return False
 
 
@@ -1419,6 +1434,12 @@ def start_editor():
         setup_global_handlers()
     dpg.set_viewport_resize_callback(callback=on_viewport_resize)
 
+    # add a font registry
+    with dpg.font_registry():
+        dpg.add_font(id='gw2_font_def', file="assets/fonts/GWTwoFont.ttf", size=13, default_font=True)
+        dpg.add_font(id='note_font', file="assets/fonts/Assa Fonts-MonsterFonts-Type Of Chalk.ttf", size=12, default_font=False)
+        dpg.add_font(id='gw2_font', file="assets/fonts/GWTwoFont.ttf", size=80, default_font=False)
+
     if main_window is None:
         main_window = MainWindow()
         main_window.draw()
@@ -1432,6 +1453,7 @@ def start_editor():
     dpg.set_viewport_width(Constants.vp_width)
     dpg.set_viewport_height(Constants.vp_height)
     dpg.set_primary_window("MIDI_Editor", True)
+    dpg.set_viewport_title("Gwidi")
     # dpg.set_viewport_resizable(False)
     # dpg.show_style_editor()
 
@@ -1474,7 +1496,16 @@ class TimeManager(threading.Thread):
         self.finished_cb = finished_cb
 
     def run(self):
+        popup_w = Constants.vp_width - 200
+        popup_h = Constants.vp_height - 200
+        popup_x = (Constants.vp_width / 2) - (popup_w / 2) - (MeasuresDisplay.drawlist_offset / 2)
+        popup_y = (Constants.vp_height / 2) - (popup_h / 2)
+        with dpg.window(id='delay_window', label='Waiting...', no_title_bar=True, no_close=True, no_move=True, no_resize=True, modal=True, popup=True, width=popup_w, height=popup_h, pos=[popup_x, popup_y]):
+            t = dpg.add_text(default_value='Delaying start...', pos=[popup_w / 2 - 300, popup_h / 2 - 30])
+            dpg.set_item_font(item=t, font="gw2_font")
         time.sleep(1)   # initial play delay
+        dpg.delete_item(item='delay_window')
+
         while self.alive:
             time.sleep(self.speed)
             self.tick()
