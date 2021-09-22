@@ -152,6 +152,9 @@ def play_sample(note, octave):
 # TODO: General refactoring
 # TODO: Add synchronization stuff01
 # TODO: Add .mid format parsing / import (stretch goal)
+# TODO: Loading / clearing still occasionally crashes (need to investigate here)
+# TODO: Control to 'lock' the song, preventing edits
+# TODO: Interpolate note scrolling during playback (linear)
 
 class Constants:
     vp_width = 1000
@@ -1586,11 +1589,11 @@ def time_tick():
     if last_octave > prev_last_octave:
         for i in range(last_octave - prev_last_octave):
             pydirectinput.press('0')  # move up
-            time.sleep(0.01)
+            time.sleep(0.05)
     elif last_octave < prev_last_octave:
         for i in range(prev_last_octave - last_octave):
             pydirectinput.press('9')  # move down
-            time.sleep(0.01)
+            time.sleep(0.05)
 
     # 'play' them all
     for n in oct_found.notes:

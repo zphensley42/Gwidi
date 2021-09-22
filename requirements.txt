@@ -3,3 +3,4 @@ pydirectinput>=0.0.1
 keyboard>=0.0.1
 dearpygui>=0.8.64
 playsound>=0.0.1
+mido>=1.2.9
