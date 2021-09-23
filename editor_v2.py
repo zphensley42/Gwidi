@@ -4,6 +4,8 @@ import dearpygui.demo
 import dearpygui.logger as dpg_logger
 import json
 from dearpygui.demo import show_demo
+from midi_editor import midi_importer
+
 
 # for windows
 import pydirectinput
@@ -636,6 +638,7 @@ class ControlBar:
         self.bpm_ctrl = None
         self.bpm_ctrl_apply = None
         self.play_sounds = None
+        self.import_but = None
 
         self.macros_menu_btn = None
 
@@ -767,6 +770,11 @@ class ControlBar:
     def sounds_enabled(self):
         return dpg.get_item_user_data(self.play_sounds)
 
+    def cb_import(self):
+        print('cb_import')
+        MouseStats.handlers_enabled = False  # TODO: Need to re-enable elsewhere
+        dpg.show_item("import_sel")
+
 
     def draw(self):
         self.clear()
@@ -794,6 +802,8 @@ class ControlBar:
 
             # Button to open the macros window
             self.macros_menu_btn = dpg.add_button(label="Macros", callback=self.cb_macros_btn, pos=[870, 0], height=self.height() / 2)
+
+            self.import_but = dpg.add_button(label='Import', callback=self.cb_import, pos=[950, 0], height=self.height() / 2)
 
             with dpg.theme(id="controls_bar_theme"):
                 dpg.add_theme_color(target=dpg.mvThemeCol_ChildBg, value=[31, 15, 16, 255], category=dpg.mvThemeCat_Core)
@@ -1427,6 +1437,170 @@ def window_closed():
     sample_manager.join()
     print('window_closed sample_manager joined')
 
+def import_selected(sender, app_data):
+    print('import_selected: {d}'.format(d=app_data))
+    midi_importer.show_importer(app_data['file_path_name'], perform_import, Constants.vp_width, Constants.vp_height)
+
+def note_length_to_ui_slots(note_length):
+    # returns [1,0,0,0] as example meaning 4 slots, the first being a strung note and the 3 after being held notes
+    if note_length == 'note_1':
+        return [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    elif note_length == 'note_2':
+        return [1,0,0,0,0,0,0,0]
+    elif note_length == 'note_4':
+        return [1,0,0,0]
+    elif note_length == 'note_8':
+        return [1,0]
+    elif note_length == 'note_16':
+        return [1]
+    else:
+        return []
+
+def pick_closest_note_key(note_length_key):
+    # for now, go 'down'
+    # notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+    if note_length_key == 'C#':
+        return 'C1'
+    elif note_length_key == 'D#':
+        return 'D'
+    elif note_length_key == 'F#':
+        return 'F'
+    elif note_length_key == 'G#':
+        return 'G'
+    elif note_length_key == 'A#':
+        return 'A'
+    else:
+        return note_length_key
+
+def map_octaves(channel_notes):
+    used_octaves = [
+        0,   # 0
+        0,   # 1
+        0,   # 2
+        0,   # 3
+        0,   # 4
+        0,   # 5
+        0,   # 6
+        0,   # 7
+        0,   # 8
+        0,   # 9
+    ]
+    for note in channel_notes:
+        oct = note.note_repr['octave']
+        used_octaves[oct] = used_octaves[oct] + 1
+        print('oct: {o}'.format(o=oct))
+        print('used_octaves: {u}'.format(u=used_octaves))
+
+    # find sliding window of highest 3 together (store begin / end) and output the subarray as the highest 3
+    begin = 0
+    end = 2
+    cv = None
+    for i in range(len(used_octaves) - 2):
+        print('2 used_octaves: {u}'.format(u=used_octaves))
+        new_total = used_octaves[i] + used_octaves[i + 1] + used_octaves[i + 2]
+        print('uo: {u}'.format(u=used_octaves[i]))
+        print('val1: {v1}, val2: {v2}, val3: {v3}'.format(v1=used_octaves[begin], v2=used_octaves[begin+1], v3=used_octaves[end]))
+        print('i: {i}, new_total: {n}'.format(i=i, n=new_total))
+        if cv is None or new_total > cv:
+            cv = new_total
+            begin = i
+            end = i + 2
+
+    subarr = used_octaves[begin:end+1]
+    return {begin: 0, (begin+1): 1, (begin+2): 2}
+    # print('subarr: {s}'.format(s=subarr))
+    # return {subarr[0]: 0, subarr[1]: 1, subarr[2]: 2}
+
+def perform_import(data):
+    # print('perform_import: {d}'.format(d=data))
+
+    # clear first
+    # main_window.controls.cb_clear(0, {})
+
+    parsed_measures = [Measure()]
+    measure_index = 0
+    slot_index = 0
+
+    # notes are in order, first filter by channel
+    sel_channel = data['selected_channel']
+    print('sel_channel: {s}'.format(s=sel_channel))
+    channel_notes = list(filter(lambda note: note.channel == data['selected_channel'], data['data']))
+    used_octaves = map_octaves(channel_notes)
+    print('3 used_octaves: {u}'.format(u=used_octaves))
+    # print('channel_notes len: {l}'.format(l=len(list(channel_notes))))
+
+
+    # find the 3 most used octaves and build a mapping for the current octave that they are to the allowed octave vals (0, 1, 2)
+
+    for note in channel_notes:
+        print('slot_index: {s}, measure_index: {m}'.format(s=slot_index, m=measure_index))
+
+        if slot_index >= Constants.slots_per_measure:
+            measure_index += 1
+            slot_index = 0
+            parsed_measures.append(Measure())
+
+        # length of note
+        note_length = note.closest_note_length()['type']
+        empty_delay_before_note = note.offset_note()  # 'silence' means the 'val' of this note is the 'length' denoted by the 'type' returned in 'val' instead
+        note_key = note.note_repr['note']
+        note_octave = note.note_repr['octave']
+
+        # Add empty slots first
+        if empty_delay_before_note['type'] == 'silence':
+            # skip X slots based on the value
+            to_skip = note_length_to_ui_slots(empty_delay_before_note['val'])
+
+            for i in range(len(to_skip)):
+                slot_index += 1
+                if slot_index >= Constants.slots_per_measure:
+                    measure_index += 1
+                    slot_index = 0
+                    parsed_measures.append(Measure())
+
+        to_add = note_length_to_ui_slots(note_length)
+        print('to_add: {t}'.format(t=to_add))
+
+        # TODO: Improve this so we don't re-filter each iteration
+        # TODO: Filter out octaves we can't play, treat them as silence (i.e just skip to the next slot index)
+        # TODO: The 'octave' values we need to use are the 3 most used octave numbers that are sequential (to get the most notes)
+        # TODO: The below does not work with chords (it moves the slot index instead of checking for notes that are at the same 'time')
+        for i in to_add:
+            real_octave = -1 if note_octave not in used_octaves else used_octaves[note_octave]
+            print('note_octave: {n1}, note_octave to select: {n}, used_octaves: {uo}'.format(n1=note_octave, n=real_octave, uo=used_octaves))
+            sel_octave = list(filter(lambda octave: octave.octave_val == real_octave, parsed_measures[measure_index].octaves))
+
+            if(len(sel_octave) <= 0):
+                slot_index += 1
+                if slot_index >= Constants.slots_per_measure:
+                    measure_index += 1
+                    slot_index = 0
+                    parsed_measures.append(Measure())
+                continue
+
+            for n in sel_octave[0].notes:
+                if n.note['label'] == note_key:
+                    if i == 0:
+                        n.slots[slot_index].is_held_note = True
+                    elif i == 1:
+                        n.slots[slot_index].activated = True
+
+                    slot_index += 1
+                    if slot_index >= Constants.slots_per_measure:
+                        measure_index += 1
+                        slot_index = 0
+                        parsed_measures.append(Measure())
+
+    Constants.measures_count = len(parsed_measures)
+    TimeManager.BPM = data['bpm']
+
+    global play_time_start
+    play_time_start = -1
+    main_window.refresh({'measures': parsed_measures})
+    print_measures()
+    # enable mouse again?
+
+
 def start_editor():
     global main_window
 
@@ -1450,6 +1624,9 @@ def start_editor():
 
         # load any currently assigned macros
         assign_macros()
+
+    ifd = dpg.add_file_dialog(modal=True, show=False, callback=import_selected, id="import_sel", default_path="./assets/midi_test/")
+    dpg.add_file_extension(extension=".mid", parent=ifd)
 
     fd = dpg.add_file_dialog(modal=True, show=False, callback=main_window.controls.cb_file_select, id="song_sel")
     dpg.add_file_extension(extension=".gwm", parent=fd)

@@ -10,7 +10,7 @@ from inspect import currentframe, stack
 # TODO: Better format all of this to be properly encompassed in the module
 
 class NoteNumberTable:
-    notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+    notes = ['C1', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
     @staticmethod
     def convert_to_note_repr(index):
         # min = 0, max = 127
@@ -25,42 +25,28 @@ class NoteNumberTable:
         note = index % 12
         return {'note': NoteNumberTable.notes[note], 'octave': octave}
 
-note_numbers = [
-    {'num': 0, 'note': 'C', 'octave': -1},
-    {'num': 0, 'note': 'C', 'octave': -1},
-]
+
+class LogUtil:
+    @staticmethod
+    def line_stats():
+        cf = currentframe()
+        filename = getframeinfo(cf).filename
+        return "{f}:{l}".format(f=filename, l=cf.f_back.f_back.f_lineno)  # 2 frames back b/c of log()
+
+    @staticmethod
+    def log(m):
+        print("{s} {m}".format(s=LogUtil.line_stats(), m=m))
 
 
-def line_stats():
-    cf = currentframe()
-    filename = getframeinfo(cf).filename
-    return "{f}:{l}".format(f=filename, l=cf.f_back.f_back.f_lineno)  # 2 frames back b/c of log()
+class Utility:
+    @staticmethod
+    def tempo_to_bpm(t):
+        return 60000000 / t
 
-# Utility
-def log(m):
-    print("{s} {m}".format(s=line_stats(), m=m))
-
-def tempo_to_bpm(t):
-    return 60000000 / t
-
-
-class NoteObj:
-    def __init__(self, note):
-        self.note = note
-        self.on = None
-        self.off = None
-
-    # in 16th-notes
-    def length(self):
-        if self.off is None or self.on is None:
-            return -1
-        return abs(self.off - self.on)
-
-    def start(self):
-        return self.on
-
-    def __repr__(self):
-        return "{{note: {n}, start: {s}, length: {l}, on: {o}, off: {f}}}".format(n=self.note, s=self.start(), l=self.length(), o=self.on, f=self.off)
+    @staticmethod
+    def note_count(notes, channel):
+        filtered = filter(lambda note: note.channel == channel, notes)
+        return len(list(filtered))
 
 class Note:
     ticks_per_beat = 384
@@ -80,15 +66,15 @@ class Note:
     ]
 
     def __init__(self, n, c, on):
-        global g_tempo
         self.note = n
+        self.note_repr = NoteNumberTable.convert_to_note_repr(n)
         self.channel = c
-        self.on_t = int(second2tick(on, Note.ticks_per_beat, g_tempo))
+        self.on_t = int(second2tick(on, Note.ticks_per_beat, MidiImporter.tempo))
         self.off_t = 0
         self.is_completed = False
 
     def off_inc(self, time):
-        self.off_t += int(second2tick(time, Note.ticks_per_beat, g_tempo))
+        self.off_t += int(second2tick(time, Note.ticks_per_beat, MidiImporter.tempo))
 
     def complete(self):
         self.is_completed = True
@@ -109,7 +95,7 @@ class Note:
         else:
             nl = Note.note_lengths[1]
             n = self.closest_note_length_worker(self.on_t)
-            copy = {"type": nl['type'], "val": n['val']}
+            copy = {"type": nl['type'], "val": n['type']}
 
             return copy
 
@@ -127,149 +113,141 @@ class Note:
 
         return cur_note
 
-class Utility:
-    @staticmethod
-    def note_count(notes, channel):
-        filtered = filter(lambda note: note.channel == channel, notes)
-        return len(list(filtered))
-
-g_tempo = 60000000
-g_table_children = []
-g_table_children_x_off = 100
-g_select_complete_cb = None
-def select_data(sender, data):
-    global g_select_complete_cb
-    data = dpg.get_item_user_data(sender)
-    g_select_complete_cb(data)
-    dpg.delete_item(item="main_window")
-
-
-def do_import(sender, data):
-    global g_tempo
-    global item_width
-    global item_height
-    global g_table_children_x_off
-    global g_select_complete_cb
-
-    log('do_import: {s} - {d}'.format(s=sender, d=data))
-
-    imported = MidiFile(data['file_path_name'], clip=True)
-    Note.ticks_per_beat = imported.ticks_per_beat
-    log('imported midi file')
+class MidiImporter:
+    vp_width = 900
+    vp_height = 600
+    tempo = 60000000
     bpm = 120
-    for m in imported.tracks[0]:
-        if m.type == 'set_tempo':
-            g_tempo = m.tempo
-            bpm = tempo_to_bpm(m.tempo)
-            break
 
-    log('detected bpm: {b}'.format(b=bpm))
+    def __init__(self):
+        self.table_children = []
+        self.table_children_x_off = 100
+        self.select_complete_cb = None
+        self.item_width = 900
+        self.item_height = 600
 
-    messages_in_order = []
-    notes = []
+    def select_data(self, sender, data):
+        data = dpg.get_item_user_data(sender)
+        self.select_complete_cb(data)
+        dpg.delete_item(item="importer_main_window")
 
-    for iter, msg in enumerate(imported):
-        if not msg.is_meta:
-            messages_in_order.append(msg)
+    # TODO: Change this to build a list of stacks per note/octave combination, using a parsing cursor for current location -> visual repo below:
+    # 'on' times > 0 mean ticks since the last note (not the last note in the stack), thus the parsing cursor is import for tracking the last position
+    # note 50 [{position: 768, length: 96}]
+    # note 55 [{position: 96, length: 192} {position: 384, length: 96}]
+    # note 57 [{position: 0, length: 192} {position: 384, length: 95}]
+    # note 59 [{position: 768, length: 96}]
+    # TODO: Key is the cursor tracking where we are
+    def do_import(self, sender, data):
+        LogUtil.log('do_import: {s} - {d}'.format(s=sender, d=data))
 
-            # build up the delta times for each note not completed
-            # if msg.type == 'note_on' or msg.type == 'note_off':
-            for n in notes:
-                if not n.completed():
-                    n.off_inc(msg.time)
+        imported = MidiFile(data['file_path_name'], clip=True)
+        Note.ticks_per_beat = imported.ticks_per_beat
+        LogUtil.log('imported midi file')
+        for m in imported.tracks[0]:
+            if m.type == 'set_tempo':
+                MidiImporter.tempo = m.tempo
+                MidiImporter.bpm = Utility.tempo_to_bpm(m.tempo)
+                break
 
-            if msg.type == 'note_on':
-                notes.append(Note(msg.note, msg.channel, msg.time))
-            elif msg.type == 'note_off':
+        LogUtil.log('detected bpm: {b}'.format(b=MidiImporter.bpm))
+
+        notes = []
+
+        for iter, msg in enumerate(imported):
+            if not msg.is_meta:
+
+                # build up the delta times for each note not completed
+                # if msg.type == 'note_on' or msg.type == 'note_off':
                 for n in notes:
-                    if not n.completed() and n == msg:
-                        n.complete()
+                    if not n.completed():
+                        n.off_inc(msg.time)
 
+                if msg.type == 'note_on':
+                    notes.append(Note(msg.note, msg.channel, msg.time))
+                elif msg.type == 'note_off':
+                    for n in notes:
+                        if not n.completed() and n == msg:
+                            n.complete()
 
+        channels = []
+        for n in notes:
+            if n.channel not in channels:
+                channels.append(n.channel)
 
-    channels = []
-    for n in notes:
-        if n.channel not in channels:
-            channels.append(n.channel)
+        for c in channels:
+            # build a table with the note info
+            with dpg.child(parent="main_window", width=self.item_width - self.table_children_x_off, height=600, pos=[int(self.table_children_x_off / 2), 10 + ((600 + 20) * c)]) as tc:
+                self.table_children.append(tc)
+                dpg.add_text(default_value="Channel {n} -- note count: {nc}".format(n=c, nc=Utility.note_count(notes, c)))
+                dpg.add_button(label="Use this channel", callback=self.select_data, user_data={'bpm': MidiImporter.bpm, 'selected_channel': c, 'data': notes})
+                with dpg.table(header_row=True):
+                    dpg.add_table_column(label='Note')
+                    dpg.add_table_column(label='Channel')
+                    dpg.add_table_column(label='On')
+                    dpg.add_table_column(label='Off')
+                    dpg.add_table_column(label='Closest Note')
+                    dpg.add_table_column(label='Offset Note')
 
-    for c in channels:
-        # build a table with the note info
-        with dpg.child(parent="main_window", width=item_width - g_table_children_x_off, height=600, pos=[int(g_table_children_x_off / 2), 10 + ((600 + 20) * c)]) as tc:
-            g_table_children.append(tc)
-            dpg.add_text(default_value="Channel {n} -- note count: {nc}".format(n=c, nc=Utility.note_count(notes, c)))
-            dpg.add_button(label="Use this channel", callback=select_data, user_data={'selected_channel': 2, 'data': notes})
-            with dpg.table(header_row=True):
-                dpg.add_table_column(label='Note')
-                dpg.add_table_column(label='Channel')
-                dpg.add_table_column(label='On')
-                dpg.add_table_column(label='Off')
-                dpg.add_table_column(label='Closest Note')
-                dpg.add_table_column(label='Offset Note')
+                    for n in notes:
+                        if n.channel != c:
+                            continue
 
-                for n in notes:
-                    if n.channel != c:
-                        continue
+                        dpg.add_text(default_value=n.note)
+                        dpg.add_table_next_column()
 
-                    dpg.add_text(default_value=n.note)
-                    dpg.add_table_next_column()
+                        dpg.add_text(default_value=n.channel)
+                        dpg.add_table_next_column()
 
-                    dpg.add_text(default_value=n.channel)
-                    dpg.add_table_next_column()
+                        dpg.add_text(default_value=n.on_t)
+                        dpg.add_table_next_column()
 
-                    dpg.add_text(default_value=n.on_t)
-                    dpg.add_table_next_column()
+                        dpg.add_text(default_value=n.off_t)
+                        dpg.add_table_next_column()
 
-                    dpg.add_text(default_value=n.off_t)
-                    dpg.add_table_next_column()
+                        dpg.add_text(default_value=str(n.closest_note_length()))
+                        dpg.add_table_next_column()
 
-                    dpg.add_text(default_value=str(n.closest_note_length()))
-                    dpg.add_table_next_column()
+                        dpg.add_text(default_value=str(n.offset_note()))
+                        dpg.add_table_next_column()
 
-                    dpg.add_text(default_value=str(n.offset_note()))
-                    dpg.add_table_next_column()
+    def res_item_cb(self, sender, data):
+        item_width = dpg.get_item_width("importer_main_window") - self.table_children_x_off
+        item_height = dpg.get_item_height("importer_main_window")
 
+        for tc in self.table_children:
+            dpg.configure_item(tc, width=item_width)
 
+    def start_importer(self, fname, select_complete_cb):
+        self.select_complete_cb = select_complete_cb
 
-vp_width = 900
-vp_height = 600
-def res_cb(sender, data):
-    global vp_width
-    global vp_height
-    vp_width = dpg.get_viewport_width() - 50
-    vp_height = dpg.get_viewport_height()
+        with dpg.window(label="Gwidi MIDI Importer", id="importer_main_window", modal=True, popup=True) as w:
+            dpg.add_resize_handler(parent=w, callback=self.res_item_cb)
 
-    dpg.configure_item(item="main_window", width=vp_width, height=vp_height)
-
-    res_item_cb(sender, data)
-
-
-item_width = 900
-item_height = 600
-def res_item_cb(sender, data):
-    global item_width
-    global item_height
-    global g_table_children_x_off
-
-    item_width = dpg.get_item_width("main_window") - g_table_children_x_off
-    item_height = dpg.get_item_height("main_window")
-
-    for tc in g_table_children:
-        dpg.configure_item(tc, width=item_width)
-
-
-def start_importer(fname, select_complete_cb):
-    global g_select_complete_cb
-    g_select_complete_cb = select_complete_cb
-
-    with dpg.window(label="Gwidi MIDI Importer", id="main_window", modal=True, popup=True) as w:
-        dpg.add_resize_handler(parent=w, callback=res_item_cb)
-
-        log('importer started')
-        do_import(None, {'file_path_name': fname})
+            LogUtil.log('importer started')
+            self.do_import(None, {'file_path_name': fname})
 
 
 def select_comp(data):
     print('select_comp({d})'.format(d=data))
+
+importer = None
+def show_importer(fname, cb, w, h):
+    global importer
+    importer = MidiImporter()
+    importer.start_importer(fname, cb)
+
+    refresh_importer(w, h)
+
+def refresh_importer(w, h):
+    MidiImporter.vp_width = w - 50
+    MidiImporter.vp_height = h
+
+    dpg.configure_item(item="importer_main_window", width=MidiImporter.vp_width, height=MidiImporter.vp_height)
+    importer.res_item_cb(0, {})
+
+def res_cb(sender, data):
+    refresh_importer(dpg.get_viewport_width() - 50, dpg.get_viewport_height())
 
 if __name__ == '__main__':
     dpg.add_window(label='test_importer', id='test_importer_id')
@@ -280,7 +258,10 @@ if __name__ == '__main__':
     dpg.set_viewport_resize_callback(res_cb)
     dpg.set_primary_window(window="test_importer_id", value=True)
 
-    start_importer('../assets/midi_test/hm.mid', select_comp)
+    show_importer('../assets/midi_test/test.mid', select_comp, 900, 600)
 
     res_cb(0, {})
     dpg.start_dearpygui()
+
+
+# TODO: Importer needs to pick notes that we can actually support (close matches would have to be made i.e. flats / sharps to notes)
