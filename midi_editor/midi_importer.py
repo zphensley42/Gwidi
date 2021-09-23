@@ -39,16 +39,6 @@ class LogUtil:
 
 
 class Utility:
-    @staticmethod
-    def tempo_to_bpm(t):
-        return 60000000 / t
-
-    @staticmethod
-    def note_count(notes, channel):
-        filtered = filter(lambda note: note.channel == channel, notes)
-        return len(list(filtered))
-
-class Note:
     ticks_per_beat = 384
     # note_16 = ticks_per_beat / 4
     # note_8 = ticks_per_beat / 2
@@ -65,6 +55,30 @@ class Note:
         {"type": "note_16", "val": int(ticks_per_beat / 4)},
     ]
 
+    @staticmethod
+    def tempo_to_bpm(t):
+        return 60000000 / t
+
+    @staticmethod
+    def note_count(notes, channel):
+        filtered = filter(lambda note: note.channel == channel, notes)
+        return len(list(filtered))
+
+    @staticmethod
+    def note_length(length):
+        cur_diff = None
+        cur_note = None
+        for nl in Utility.note_lengths[2:]:
+            new_diff = abs(nl['val'] - length)
+            if cur_diff is None or cur_diff > new_diff:
+                cur_diff = new_diff
+                cur_note = nl
+
+        return cur_note
+
+
+
+class Note:
     def __init__(self, n, c, on):
         self.note = n
         self.note_repr = NoteNumberTable.convert_to_note_repr(n)
@@ -135,7 +149,7 @@ class MidiImporter:
     # 'on' times > 0 mean ticks since the last note (not the last note in the stack), thus the parsing cursor is import for tracking the last position
     # note 50 [{position: 768, length: 96}]
     # note 55 [{position: 96, length: 192} {position: 384, length: 96}]
-    # note 57 [{position: 0, length: 192} {position: 384, length: 95}]
+    # note 57 [{position: 0, length: 192} {position: 384, length: 96}]
     # note 59 [{position: 768, length: 96}]
     # TODO: Key is the cursor tracking where we are
     def do_import(self, sender, data):
@@ -152,64 +166,66 @@ class MidiImporter:
 
         LogUtil.log('detected bpm: {b}'.format(b=MidiImporter.bpm))
 
-        notes = []
+        cursor = 0
+        channels = {}
+        for m in imported:
+            if not m.is_meta and (m.type == 'note_on' or m.type == 'note_off'):
+                # move to the beginning of the note
+                cursor += second2tick(m.time, Note.ticks_per_beat, MidiImporter.tempo)
 
-        for iter, msg in enumerate(imported):
-            if not msg.is_meta:
+                if m.channel not in channels:
+                    channels[m.channel] = {}
+                notes = channels[m.channel]
 
-                # build up the delta times for each note not completed
-                # if msg.type == 'note_on' or msg.type == 'note_off':
-                for n in notes:
-                    if not n.completed():
-                        n.off_inc(msg.time)
+                if m.note not in notes:
+                    notes[m.note] = []
+                note_positions = notes[m.note]
 
-                if msg.type == 'note_on':
-                    notes.append(Note(msg.note, msg.channel, msg.time))
-                elif msg.type == 'note_off':
-                    for n in notes:
-                        if not n.completed() and n == msg:
-                            n.complete()
+                # use on/off to determine when a position is complete and we should push a new one
+                if m.type == 'note_on':
+                    note_positions.append({
+                        'repr': NoteNumberTable.convert_to_note_repr(m.note),
+                        'position': cursor,
+                        'length': 0,
+                        'note_type': 'none'
+                    })
+                elif m.type == 'note_off':
+                    np = note_positions[-1]
+                    np['length'] = cursor - np['position']
+                    np['note_type'] = Utility.note_length(np['length'])
 
-        channels = []
-        for n in notes:
-            if n.channel not in channels:
-                channels.append(n.channel)
 
-        for c in channels:
+        for k in channels.keys():
             # build a table with the note info
-            with dpg.child(parent="main_window", width=self.item_width - self.table_children_x_off, height=600, pos=[int(self.table_children_x_off / 2), 10 + ((600 + 20) * c)]) as tc:
+            with dpg.child(parent="main_window", width=self.item_width - self.table_children_x_off, height=600, pos=[int(self.table_children_x_off / 2), 10 + ((600 + 20) * k)]) as tc:
                 self.table_children.append(tc)
-                dpg.add_text(default_value="Channel {n} -- note count: {nc}".format(n=c, nc=Utility.note_count(notes, c)))
-                dpg.add_button(label="Use this channel", callback=self.select_data, user_data={'bpm': MidiImporter.bpm, 'selected_channel': c, 'data': notes})
+
+                # move this to utility
+                note_count = 0
+                for n in channels[k]:
+                    note_count += len(channels[k][n])
+
+                dpg.add_text(default_value="Channel {n} -- note count: {nc}".format(n=k, nc=note_count))
+                dpg.add_button(label="Use this channel", callback=self.select_data, user_data={'bpm': MidiImporter.bpm, 'selected_channel': k, 'data': channels[k]})
                 with dpg.table(header_row=True):
                     dpg.add_table_column(label='Note')
-                    dpg.add_table_column(label='Channel')
-                    dpg.add_table_column(label='On')
-                    dpg.add_table_column(label='Off')
-                    dpg.add_table_column(label='Closest Note')
-                    dpg.add_table_column(label='Offset Note')
+                    dpg.add_table_column(label='Position')
+                    dpg.add_table_column(label='Length')
+                    # dpg.add_table_column(label='Closest Note')  # use 'note representation' to give note_16, note_8, etc
+                    # dpg.add_table_column(label='Offset Note')
 
-                    for n in notes:
-                        if n.channel != c:
-                            continue
+                    for n in channels[k]:
+                        # note row
+                        for p in channels[k][n]:
+                            # note position
+                            dpg.add_text(default_value=n)
+                            dpg.add_table_next_column()
 
-                        dpg.add_text(default_value=n.note)
-                        dpg.add_table_next_column()
+                            dpg.add_text(default_value=p['position'])
+                            dpg.add_table_next_column()
 
-                        dpg.add_text(default_value=n.channel)
-                        dpg.add_table_next_column()
-
-                        dpg.add_text(default_value=n.on_t)
-                        dpg.add_table_next_column()
-
-                        dpg.add_text(default_value=n.off_t)
-                        dpg.add_table_next_column()
-
-                        dpg.add_text(default_value=str(n.closest_note_length()))
-                        dpg.add_table_next_column()
-
-                        dpg.add_text(default_value=str(n.offset_note()))
-                        dpg.add_table_next_column()
+                            dpg.add_text(default_value=p['length'])
+                            dpg.add_table_next_column()
 
     def res_item_cb(self, sender, data):
         item_width = dpg.get_item_width("importer_main_window") - self.table_children_x_off
