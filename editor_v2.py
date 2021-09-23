@@ -152,11 +152,18 @@ def play_sample(note, octave):
 # TODO: Probably to handle the issues require 'down' to be in a valid square before continuing the motion
 # TODO: For performance, move 'sending inputs' for the playback out to a separate thread/handler? (I guess they already are but the feedback loop is still too gui tied)
 # TODO: General refactoring
-# TODO: Add synchronization stuff01
+# TODO: Add synchronization stuff
 # TODO: Add .mid format parsing / import (stretch goal)
 # TODO: Loading / clearing still occasionally crashes (need to investigate here)
 # TODO: Control to 'lock' the song, preventing edits
 # TODO: Interpolate note scrolling during playback (linear)
+# TODO: Options for how we treat imported sharp notes (go up or down or so on)
+# TODO: Loading for when we are importing
+# TODO: Add option for a 'bias' to which octave is played when there are multiple octaves with notes at the same time
+# TODO: Add options to force which octaves are chosen from the import (and mapped to octaves 0, 1, 2)
+# TODO: Rework to be lists of notes defined by value instead of the structure I have to make it more optimized / efficient
+# TODO: i.e. similar to how the imported notes look
+# TODO: Import mode idea : convert notes directly to handle cases where too many sharps (i.e. C -> C, C# -> D, D# -> E, D -> F, etc)
 
 class Constants:
     vp_width = 1000

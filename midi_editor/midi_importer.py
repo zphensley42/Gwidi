@@ -9,6 +9,9 @@ from inspect import currentframe, stack
 
 # TODO: Better format all of this to be properly encompassed in the module
 
+# TODO: Add names of the instruments to the 'use this channel' selection
+# TODO: Fix weird scrolling stuff with large / many channels
+
 class NoteNumberTable:
     notes = ['C1', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
     @staticmethod
@@ -57,7 +60,7 @@ class Utility:
 
     @staticmethod
     def tempo_to_bpm(t):
-        return 60000000 / t
+        return int(60000000 / t)
 
     @staticmethod
     def note_count(notes, channel):
@@ -145,7 +148,6 @@ class MidiImporter:
         self.select_complete_cb(data)
         dpg.delete_item(item="importer_main_window")
 
-    # TODO: Change this to build a list of stacks per note/octave combination, using a parsing cursor for current location -> visual repo below:
     # 'on' times > 0 mean ticks since the last note (not the last note in the stack), thus the parsing cursor is import for tracking the last position
     # note 50 [{position: 768, length: 96}]
     # note 55 [{position: 96, length: 192} {position: 384, length: 96}]
@@ -165,6 +167,20 @@ class MidiImporter:
                 break
 
         LogUtil.log('detected bpm: {b}'.format(b=MidiImporter.bpm))
+
+        instruments = {}
+        for iter, t in enumerate(imported.tracks):
+            chan = None
+            instr = None
+            for m in t:
+                if m.is_meta and m.type == 'track_name':
+                    instr = m.name
+                elif m.type == 'program_change':
+                    chan = m.channel
+
+                if instr is not None and chan is not None:
+                    instruments[chan] = instr
+                    break
 
         cursor = 0
         channels = {}
@@ -195,9 +211,10 @@ class MidiImporter:
                     np['note_type'] = Utility.note_length(np['length'])
 
 
-        for k in channels.keys():
+        for iter, k in enumerate(channels.keys()):
             # build a table with the note info
-            with dpg.child(parent="main_window", width=self.item_width - self.table_children_x_off, height=600, pos=[int(self.table_children_x_off / 2), 10 + ((600 + 20) * k)]) as tc:
+            # build a table with the note info
+            with dpg.child(parent="importer_main_window", width=self.item_width - self.table_children_x_off, height=600, pos=[int(self.table_children_x_off / 2), 30 + ((600 + 20) * iter)]) as tc:
                 self.table_children.append(tc)
 
                 # move this to utility
@@ -205,8 +222,13 @@ class MidiImporter:
                 for n in channels[k]:
                     note_count += len(channels[k][n])
 
-                dpg.add_text(default_value="Channel {n} -- note count: {nc}".format(n=k, nc=note_count))
-                dpg.add_button(label="Use this channel", callback=self.select_data, user_data={'bpm': MidiImporter.bpm, 'selected_channel': k, 'data': channels[k]})
+                dpg.add_text(default_value="Channel {n} -- Instrument: {i} -- note count: {nc}".format(n=k, i=instruments[k], nc=note_count))
+
+                dpg.add_dummy(width=100)
+                dpg.add_same_line()
+                dpg.add_button(label="Select this channel", callback=self.select_data, user_data={'bpm': MidiImporter.bpm, 'selected_channel': k, 'data': channels[k]})
+
+                dpg.add_dummy(height=20)
                 with dpg.table(header_row=True):
                     dpg.add_table_column(label='Note')
                     dpg.add_table_column(label='Position')
@@ -237,7 +259,7 @@ class MidiImporter:
     def start_importer(self, fname, select_complete_cb):
         self.select_complete_cb = select_complete_cb
 
-        with dpg.window(label="Gwidi MIDI Importer", id="importer_main_window", modal=True, popup=True) as w:
+        with dpg.window(label="Gwidi MIDI Importer", id="importer_main_window", modal=True, popup=True, on_close=lambda: dpg.delete_item("importer_main_window")) as w:
             dpg.add_resize_handler(parent=w, callback=self.res_item_cb)
 
             LogUtil.log('importer started')
@@ -257,7 +279,7 @@ def show_importer(fname, cb, w, h):
 
 def refresh_importer(w, h):
     MidiImporter.vp_width = w - 50
-    MidiImporter.vp_height = h
+    MidiImporter.vp_height = h - 50
 
     dpg.configure_item(item="importer_main_window", width=MidiImporter.vp_width, height=MidiImporter.vp_height)
     importer.res_item_cb(0, {})
@@ -274,7 +296,7 @@ if __name__ == '__main__':
     dpg.set_viewport_resize_callback(res_cb)
     dpg.set_primary_window(window="test_importer_id", value=True)
 
-    show_importer('../assets/midi_test/test.mid', select_comp, 900, 600)
+    show_importer('../assets/midi_test/EarthBound - Pollyanna.mid_1632424030162.mid', select_comp, 900, 600)
 
     res_cb(0, {})
     dpg.start_dearpygui()
