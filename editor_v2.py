@@ -1567,26 +1567,30 @@ def perform_import(data):
                             # for each tick in length, mark a slot as activated or held depending on first or not
                             n.slots[slot_index].activated = True
 
-                            inner_slot_index = slot_index
                             inner_measure_index = measure_index
                             inner_measure = parsed_measures[inner_measure_index]
                             inner_octave = list(filter(lambda octave: octave.octave_val == real_oct,
                                                           inner_measure.octaves))
 
+                            print('total to add: {t}'.format(t=total_to_add))
+                            additional_index = slot_index
                             for i in range(1, total_to_add):
-                                additional_index = inner_slot_index + i
+                                additional_index += 1
                                 if additional_index >= Constants.slots_per_measure:
                                     parsed_measures.append(Measure())
 
-                                    inner_slot_index = 0
+                                    additional_index = 0
                                     inner_measure_index += 1
                                     inner_measure = parsed_measures[inner_measure_index]
                                     inner_octave = list(filter(lambda octave: octave.octave_val == real_oct,
                                                                inner_measure.octaves))
 
+                                print('inner_octave: {io}, inner_measure: {im}, inner_measure_index: {m}, additional_index: {a}, i: {i2}'.format(io=inner_octave, im=inner_measure, m=inner_measure_index, a=additional_index, i2=i))
                                 for ion in inner_octave[0].notes:
                                     if ion.note['label'] == note_val:
-                                        n.slots[additional_index].is_held_note = True
+                                        print('additional_index: {a}'.format(a=additional_index))
+                                        ion.slots[additional_index].is_held_note = True
+                                        break
 
 
 
