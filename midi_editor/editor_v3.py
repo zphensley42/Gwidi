@@ -40,13 +40,59 @@ class Constants:
 
 
 class Controls:
+    def cb_play(self):
+        print('cb_play')
+
+    def cb_load(self):
+        print('cb_load')
+
+    def cb_save(self):
+        print('cb_save')
+
+    def cb_import(self):
+        print('cb_import')
+
+    def cb_macros(self):
+        print('cb_macros')
+
+    def cb_stats(self):
+        print('cb_stats')
+        MouseControls.disable()
+        play_manager.g_play_stats.show_stats_popup(lambda: MouseControls.enable())
+
+    def cb_bpm_changed(self):
+        print('cb_bpm_changed')
+
+    def cb_measures_changed(self):
+        print('cb_measures_changed')
+
     def draw(self, parent):
         with dpg.child(id='controls_panel', parent=parent):
-            dpg.add_button(id='c_but_1', label="Button 1")
+            dpg.add_button(id='but_play', label="Play", callback=self.cb_play)
             dpg.add_same_line()
             dpg.add_dummy(width=10)
             dpg.add_same_line()
-            dpg.add_button(id='c_but_2', label="Button 2")
+            dpg.add_button(id='but_load', label="Load", callback=self.cb_load)
+            dpg.add_same_line()
+            dpg.add_dummy(width=10)
+            dpg.add_same_line()
+            dpg.add_button(id='but_save', label="Save", callback=self.cb_save)
+            dpg.add_same_line()
+            dpg.add_dummy(width=10)
+            dpg.add_same_line()
+            dpg.add_button(id='but_import', label="Import", callback=self.cb_import)
+            dpg.add_same_line()
+            dpg.add_dummy(width=10)
+            dpg.add_same_line()
+            dpg.add_button(id='but_macros', label="Macros", callback=self.cb_macros)
+            dpg.add_same_line()
+            dpg.add_dummy(width=10)
+            dpg.add_same_line()
+            dpg.add_button(id='but_stats', label="Stats", callback=self.cb_stats)
+
+
+
+
             dpg.add_text(id='debug_text', default_value='N/A')
 
         self.resize()
@@ -270,6 +316,16 @@ def on_viewport_resize(sender, data):
 
 
 class MouseControls:
+    controls_enabled = True
+
+    @staticmethod
+    def enable():
+        MouseControls.controls_enabled = True
+
+    @staticmethod
+    def disable():
+        MouseControls.controls_enabled = False
+
     def __init__(self, trigger_cb):
         with dpg.handler_registry():
             self.setup_global_handlers()
@@ -278,6 +334,9 @@ class MouseControls:
         self.trigger_cb = trigger_cb
 
     def handle_mouse_moved(self, sender, data):
+        if not MouseControls.controls_enabled:
+            return
+
         self.pos = data
         pos_offset = [Constants.note_labels_width, Constants.controls_height]
 
@@ -294,6 +353,9 @@ class MouseControls:
         self.trigger_cb(translated_pos)
 
     def handle_mouse_down(self, sender, data):
+        if not MouseControls.controls_enabled:
+            return
+
         if self.triggered:
             return
 
@@ -302,6 +364,9 @@ class MouseControls:
         self.handle_mouse_moved(sender, self.pos)
 
     def handle_mouse_up(self, sender, data):
+        if not MouseControls.controls_enabled:
+            return
+
         self.triggered = False
         print('handle_mouse_up: {d}'.format(d=self.pos))
         for n in gwidi_data.g_measure_info.notes:
