@@ -1,9 +1,16 @@
 import dearpygui.dearpygui as dpg
 import gwidi_data
 import threading, time
-import pydirectinput
 
-pydirectinput.PAUSE = 0
+# for osx
+class pydirectinput:
+    @staticmethod
+    def press(key):
+        keyboard.press_and_release(key)
+import keyboard
+
+# import pydirectinput
+# pydirectinput.PAUSE = 0
 
 class PlayStats:
     def __init__(self):
@@ -12,6 +19,9 @@ class PlayStats:
         self.default_octave = 1
         self.sounds_enabled = True
         self.samples_dir = './../assets/samples'
+
+        # options: HighestOctave, LowestOctave, HighestActiveSlots, SpecifiedDefault
+        self.octave_pick_mode = 'HighestOctave'
 
     def assign_bpm(self, b):
         self.bpm = b
@@ -40,7 +50,7 @@ class PlayStats:
 
         # TODO: Don't allow mouse delegation while popped up
         w_space = dpg.get_viewport_width() - 300
-        with dpg.window(pos=[w_space / 2, 0], width=300, id='song_stats', popup=True, modal=True, no_close=True, no_title_bar=True, no_move=True, no_resize=True):
+        with dpg.window(pos=[w_space / 2, 0], width=300, height=250, id='song_stats', popup=True, modal=True, no_close=True, no_title_bar=True, no_move=True, no_resize=True):
             dpg.add_dummy(height=20)
 
             dpg.add_dummy(width=20)
@@ -152,6 +162,7 @@ class PlayManager:
         self.play_time_start = 0
         self.scrub_slots = []
         self.last_played = []
+        self.last_played_octave = 1
 
         self.play_thread = None
         self.tick_cb = None
@@ -177,6 +188,32 @@ class PlayManager:
         note_to_play = slot.note
         self.sample_manager.push_sample({'key': note_to_play['key'], 'note': note_to_play['label'], 'octave': slot.octave})
 
+    def select_slots_by_mode(self, in_slots):
+        octave = g_play_stats.default_octave
+        to_play = in_slots[list(in_slots.keys())[octave]]
+
+        if g_play_stats.octave_pick_mode == 'HighestOctave':
+            for iter, c in enumerate(in_slots):
+                slots = in_slots[c]
+                if len(slots) > 0:
+                    octave = c
+                    return {'slots': slots, 'octave_ind': iter}  # first entry should be highest octave
+        elif g_play_stats.octave_pick_mode == 'LowestOctave':
+            # TODO: Fill-in
+            return []
+        elif g_play_stats.octave_pick_mode == 'HighestActiveSlots':
+            for iter, c in enumerate(in_slots):
+                slots = in_slots[c]
+                if len(slots) > len(to_play):
+                    octave = c
+                    to_play = {'slots': slots, 'octave_ind': iter}
+            return to_play
+        elif g_play_stats.octave_pick_mode == 'SpecifiedDefault':
+            # TODO: Fill-in
+            return []
+
+        return {'slots': to_play, 'octave_ind': octave}
+
     def tick(self):
         self.play_time += 1
 
@@ -200,18 +237,28 @@ class PlayManager:
                 if n.octave == o and slot.activated:
                     cur_slots[o].append(slot)
 
-        # 'play' the highest count (or default if all the same)
-        to_play = cur_slots[list(cur_slots.keys())[g_play_stats.default_octave]]
-        for c in cur_slots:
-            slots = cur_slots[c]
-            if len(slots) > len(to_play):
-                to_play = slots
+        to_play = self.select_slots_by_mode(cur_slots)
 
         print('selected_octaves: {p0}, cur_slots: {p1}, to_play: {p2}'.format(p0=octaves, p1=cur_slots, p2=to_play))
 
-        for s in to_play:
+        # 'switch' octaves as necessary
+        # TODO: This should be part of the 'play_slot' logic instead to not mess with timing here? (maybe)
+        # TODO: There is some weird reverse indexing I've done somewhere with octaves that is making me reverse again here
+        if to_play['octave_ind'] > self.last_played_octave:
+            for i in range(to_play['octave_ind'] - self.last_played_octave):
+                print('moving octave down')
+                pydirectinput.press('9')  # move down
+                time.sleep(0.05)
+        elif to_play['octave_ind'] < self.last_played_octave:
+            for i in range(self.last_played_octave - to_play['octave_ind']):
+                print('moving octave up')
+                pydirectinput.press('0')  # move up
+                time.sleep(0.05)
+
+        for s in to_play['slots']:
             self.play_slot(s)
             self.last_played.append(s)
+        self.last_played_octave = to_play['octave_ind']
 
         # update the playout on scrub
         dpg.configure_item(self.scrub_slots[self.play_time - 1], fill=[255, 255, 255, 255])
@@ -307,60 +354,60 @@ class SampleManager(threading.Thread):
         print('playing sample: {n} {o} -- real: {o2}'.format(n=note, o=oct, o2=octave))
 
         if note == 'C2':
-            if octave == 2:
+            if octave == 0:
                 playsound(g_play_stats.samples_dir + '/piano/c7.mp3')
             elif octave == 1:
                 playsound(g_play_stats.samples_dir + '/piano/c6.mp3')
-            elif octave == 0:
+            elif octave == 2:
                 playsound(g_play_stats.samples_dir + '/piano/c5.mp3')
         elif note == 'B':
-            if octave == 2:
+            if octave == 0:
                 playsound(g_play_stats.samples_dir + '/piano/b6.mp3')
             elif octave == 1:
                 playsound(g_play_stats.samples_dir + '/piano/b5.mp3')
-            elif octave == 0:
+            elif octave == 2:
                 playsound(g_play_stats.samples_dir + '/piano/b4.mp3')
         elif note == 'A':
-            if octave == 2:
+            if octave == 0:
                 playsound(g_play_stats.samples_dir + '/piano/a6.mp3')
             elif octave == 1:
                 playsound(g_play_stats.samples_dir + '/piano/a5.mp3')
-            elif octave == 0:
+            elif octave == 2:
                 playsound(g_play_stats.samples_dir + '/piano/a4.mp3')
         elif note == 'G':
-            if octave == 2:
+            if octave == 0:
                 playsound(g_play_stats.samples_dir + '/piano/g6.mp3')
             elif octave == 1:
                 playsound(g_play_stats.samples_dir + '/piano/g5.mp3')
-            elif octave == 0:
+            elif octave == 2:
                 playsound(g_play_stats.samples_dir + '/piano/g4.mp3')
         elif note == 'F':
-            if octave == 2:
+            if octave == 0:
                 playsound(g_play_stats.samples_dir + '/piano/f6.mp3')
             elif octave == 1:
                 playsound(g_play_stats.samples_dir + '/piano/f5.mp3')
-            elif octave == 0:
+            elif octave == 2:
                 playsound(g_play_stats.samples_dir + '/piano/f4.mp3')
         elif note == 'E':
-            if octave == 2:
+            if octave == 0:
                 playsound(g_play_stats.samples_dir + '/piano/e6.mp3')
             elif octave == 1:
                 playsound(g_play_stats.samples_dir + '/piano/e5.mp3')
-            elif octave == 0:
+            elif octave == 2:
                 playsound(g_play_stats.samples_dir + '/piano/e4.mp3')
         elif note == 'D':
-            if octave == 2:
+            if octave == 0:
                 playsound(g_play_stats.samples_dir + '/piano/d6.mp3')
             elif octave == 1:
                 playsound(g_play_stats.samples_dir + '/piano/d5.mp3')
-            elif octave == 0:
+            elif octave == 2:
                 playsound(g_play_stats.samples_dir + '/piano/d4.mp3')
         elif note == 'C1':
-            if octave == 2:
+            if octave == 0:
                 playsound(g_play_stats.samples_dir + '/piano/c6.mp3')
             elif octave == 1:
                 playsound(g_play_stats.samples_dir + '/piano/c5.mp3')
-            elif octave == 0:
+            elif octave == 2:
                 playsound(g_play_stats.samples_dir + '/piano/c4.mp3')
 
 

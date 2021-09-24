@@ -15,6 +15,8 @@ import play_manager
 # TODO: All to remove measures from beginning as well, not just 'count' (start index)
 # TODO: Option to pick different defaults on different measures (i.e. override which octave is played on that measure)
 # TODO: Import option that converts notes differently (i.e. C#->C, C ->D vs C#->C, C->C)
+# TODO: Add options for how the system 'picks' which octave in case of multiple notes
+# - options: highest # of notes, highest octave, lowest octave, specified default
 
 class Constants:
     vp_width = None
@@ -212,7 +214,7 @@ class Content:
                     'slot_index': converted_note_index,
                     'length_indices': converted_note_length,
                     'note': note_key,
-                    'octave': note_octave
+                    'octave': len(gwidi_data.g_measure_info.octaves) - note_octave
                 })
 
         total_measure_count = total_measure_count + 1   # Always at least one, need to offset 0 index
@@ -227,7 +229,7 @@ class Content:
         return len(gwidi_data.g_measure_info.notes) * Constants.slot_height + (Constants.octave_spacing * len(gwidi_data.MeasureInfo.octaves)) + 15
 
     def content_width(self):
-        return (len(gwidi_data.g_measure_info.notes[0].slots) * Constants.slot_width) + (gwidi_data.MeasureInfo.measure_count - 1 * Constants.measure_spacing) + 30
+        return (len(gwidi_data.g_measure_info.notes[0].slots) * Constants.slot_width) + (gwidi_data.MeasureInfo.measure_count * Constants.measure_spacing) + 30
 
     def draw_slots(self):
         with dpg.drawlist(parent='content_panel', id='content_dl', height=self.content_height() + 50, width=self.content_width() + 10):

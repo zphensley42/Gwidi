@@ -4,7 +4,7 @@ class MeasureInfo:
     slots_per_measure = 16
     measure_count = 3
     octaves = [8, 7, 6, 5, 4, 3, 2, 1, 0]
-    selected_octaves = [4, 5, 6]
+    selected_octaves = [6, 5, 4]
 
     @staticmethod
     def update_measure_count(cnt):
@@ -166,7 +166,9 @@ class Slot:
         self.change_trigger = False
 
     def fill(self):
-        if self.activated:
+        if self.is_playing:
+            return [0, 0, 255, 255]
+        elif self.activated:
             return [0, 255, 0, 255]
         elif self.is_held:
             return [0, 255, 255, 255]
