@@ -1,3 +1,4 @@
+import dearpygui.dearpygui as dpg
 
 class MeasureInfo:
     slots_per_measure = 16
@@ -44,23 +45,65 @@ class Slot:
         self.activated = False
         self.is_held = False
         self.change_trigger = False
+        self.is_playing = False
+        self.rect = None
+        self.rect_text = None
+
+    def drawn(self, rect, rect_text):
+        self.rect = rect
+        self.rect_text = rect_text
+
+    def refresh(self):
+        dpg.configure_item(self.rect, fill=self.fill(), color=self.color())
 
     def activate(self):
         if self.change_trigger:
             return
+        if self.activated:
+            self.hold()
+            return
+
         self.activated = True
         self.is_held = False
         self.change_trigger = True
+        self.refresh()
+
+    def clear(self):
+        if self.change_trigger:
+            return
+        self.activated = False
+        self.is_held = False
+        self.change_trigger = True
+        self.refresh()
 
     def hold(self):
         if self.change_trigger:
             return
+        if self.is_held:
+            self.activate()
+            return
+
         self.is_held = True
         self.activated = False
         self.change_trigger = True
+        self.refresh()
 
     def change_finished(self):
         self.change_trigger = False
+
+    def fill(self):
+        if self.activated:
+            return [0, 255, 0, 255]
+        elif self.is_held:
+            return [0, 255, 255, 255]
+        else:
+            return [255, 255, 255, 255]
+
+    def color(self):
+        if self.is_playing:
+            return [0, 0, 255, 0]
+        else:
+            return [255, 255, 255, 255]
 
 
 g_measure_info = None
