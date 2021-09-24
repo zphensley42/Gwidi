@@ -13,6 +13,8 @@ import play_manager
 # TODO: Move saving / loading back in
 # TODO: Move macros back in
 # TODO: All to remove measures from beginning as well, not just 'count' (start index)
+# TODO: Option to pick different defaults on different measures (i.e. override which octave is played on that measure)
+# TODO: Import option that converts notes differently (i.e. C#->C, C ->D vs C#->C, C->C)
 
 class Constants:
     vp_width = None
