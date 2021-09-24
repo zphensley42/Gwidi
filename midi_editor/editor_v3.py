@@ -40,6 +40,10 @@ class Constants:
 
 
 class Controls:
+    def stats_saved(self, do_refresh):
+        global g_window
+        g_window.refresh()
+
     def cb_play(self):
         print('cb_play')
 
@@ -58,7 +62,7 @@ class Controls:
     def cb_stats(self):
         print('cb_stats')
         MouseControls.disable()
-        play_manager.g_play_stats.show_stats_popup(lambda: MouseControls.enable())
+        play_manager.g_play_stats.show_stats_popup(self.stats_saved)
 
     def cb_bpm_changed(self):
         print('cb_bpm_changed')
@@ -113,7 +117,65 @@ class Content:
     def content_width(self):
         return (len(gwidi_data.g_measure_info.notes[0].slots) * Constants.slot_width) + (gwidi_data.MeasureInfo.measure_count - 1 * Constants.measure_spacing) + 30
 
-    # TODO: clear old saved items first?
+    def draw_slots(self):
+        with dpg.drawlist(parent='content_panel', id='content_dl', height=self.content_height() + 50, width=self.content_width()):
+            for iter_n, n in enumerate(gwidi_data.g_measure_info.notes):
+                octave_index = int(iter_n / 8)
+                y_off = iter_n * Constants.slot_height + (octave_index * Constants.octave_spacing)
+
+                dpg.draw_text(parent='note_labels_panel', text=n.note['label'], pos=[5, y_off + 2], size=11,
+                              color=[255, 255, 255, 255])
+
+                for iter_s, s in enumerate(n.slots):
+
+                    measure_index = int(iter_s / gwidi_data.MeasureInfo.slots_per_measure)
+
+                    x_off = iter_s * Constants.slot_width + (measure_index * Constants.measure_spacing)
+                    padding_offset = Constants.slot_spacing / 2
+                    r_pos = [x_off + padding_offset, y_off + padding_offset]
+                    rect = dpg.draw_rectangle(pmin=r_pos, pmax=[x_off + Constants.slot_width - padding_offset,
+                                                                y_off + Constants.slot_height - padding_offset],
+                                              fill=s.fill(),
+                                              color=s.color())
+                    print('drawing text for rect at pos: {p}, text: {t}'.format(p=dpg.get_item_pos(rect), t=s.note))
+                    rect_text = dpg.draw_text(pos=[r_pos[0] + 2, r_pos[1] + 2], text=s.note['label'], size=12,
+                                              color=[0, 0, 0, 255])
+                    s.drawn(rect, rect_text)
+
+                    if iter_s % gwidi_data.MeasureInfo.slots_per_measure == 0:
+                        self.measure_boundaries[measure_index] = x_off
+
+                    if iter_s % 4 == 0 and iter_s != 0 and iter_s % gwidi_data.MeasureInfo.slots_per_measure != 0:
+                        line_pad = padding_offset * 1.5
+                        dpg.draw_line(p1=[x_off, y_off + line_pad],
+                                      p2=[x_off, y_off + Constants.slot_height - line_pad], thickness=2,
+                                      color=[255, 0, 0, 255])
+
+                if iter_n % 8 == 0:
+                    self.octave_boundaries[octave_index] = y_off
+
+                if iter_n % 8 == 0 and iter_n != 0:
+                    line_pad = Constants.octave_spacing / 2
+                    dpg.draw_line(p1=[0, y_off - line_pad], p2=[self.content_width(), y_off - line_pad], thickness=2,
+                                  color=[0, 0, 200, 255])
+
+            for s_iter, s in enumerate(gwidi_data.g_measure_info.notes[0].slots):
+                measure_index = int(s_iter / gwidi_data.MeasureInfo.slots_per_measure)
+
+                # Draw the scrub bar
+                y_off = self.content_height()
+                x_off = (s_iter * Constants.slot_width) + (measure_index * Constants.measure_spacing)
+                padding_offset = Constants.slot_spacing / 2
+                selected = s_iter == play_manager.g_play_manager.play_time
+                fill = [255, 0, 0, 255] if selected else [255, 255, 255, 255]
+                self.scrub_bar_ypos = y_off
+                scrub_r = dpg.draw_rectangle(pmin=[x_off + padding_offset, y_off + padding_offset],
+                                             pmax=[x_off + Constants.slot_width - padding_offset,
+                                                   y_off + Constants.slot_height - padding_offset],
+                                             fill=fill)
+
+                play_manager.g_play_manager.scrub_slots.append(scrub_r)
+
     def draw(self, parent):
         # dpg.show_style_editor()
 
@@ -124,58 +186,13 @@ class Content:
         dpg.add_drawlist(parent=parent, id='note_labels_panel', width=Constants.note_labels_width, height=self.content_height() + 80)
         dpg.add_same_line(parent=parent)
         with dpg.child(id='content_panel', parent=parent, height=self.content_height() + 80, width=Constants.content_width, horizontal_scrollbar=True):
-
-            with dpg.drawlist(id='content_dl', height=self.content_height() + 50, width=self.content_width()):
-                for iter_n, n in enumerate(gwidi_data.g_measure_info.notes):
-                    octave_index = int(iter_n / 8)
-                    y_off = iter_n * Constants.slot_height + (octave_index * Constants.octave_spacing)
-
-                    dpg.draw_text(parent='note_labels_panel', text=n.note['label'], pos=[5, y_off + 2], size=11, color=[255, 255, 255, 255])
-
-                    for iter_s, s in enumerate(n.slots):
-
-                        measure_index = int(iter_s / gwidi_data.MeasureInfo.slots_per_measure)
-
-                        x_off = iter_s * Constants.slot_width + (measure_index * Constants.measure_spacing)
-                        padding_offset = Constants.slot_spacing / 2
-                        r_pos = [x_off + padding_offset, y_off + padding_offset]
-                        rect = dpg.draw_rectangle(pmin=r_pos, pmax=[x_off + Constants.slot_width - padding_offset, y_off + Constants.slot_height - padding_offset],
-                                           fill=s.fill(),
-                                           color=s.color())
-                        print('drawing text for rect at pos: {p}, text: {t}'.format(p=dpg.get_item_pos(rect), t=s.note))
-                        rect_text = dpg.draw_text(pos=[r_pos[0] + 2, r_pos[1] + 2], text=s.note['label'], size=12, color=[0, 0, 0, 255])
-                        s.drawn(rect, rect_text)
-
-                        if iter_s % gwidi_data.MeasureInfo.slots_per_measure == 0:
-                            self.measure_boundaries[measure_index] = x_off
-
-                        if iter_s % 4 == 0 and iter_s != 0 and iter_s % gwidi_data.MeasureInfo.slots_per_measure != 0:
-                            line_pad = padding_offset * 1.5
-                            dpg.draw_line(p1=[x_off, y_off + line_pad], p2=[x_off, y_off + Constants.slot_height - line_pad], thickness=2, color=[255, 0, 0, 255])
-
-                    if iter_n % 8 == 0:
-                        self.octave_boundaries[octave_index] = y_off
-
-                    if iter_n % 8 == 0 and iter_n != 0:
-                        line_pad = Constants.octave_spacing / 2
-                        dpg.draw_line(p1=[0, y_off - line_pad], p2=[self.content_width(), y_off - line_pad], thickness=2, color=[0, 0, 200, 255])
-
-                for s_iter, s in enumerate(gwidi_data.g_measure_info.notes[0].slots):
-                    measure_index = int(s_iter / gwidi_data.MeasureInfo.slots_per_measure)
-
-                    # Draw the scrub bar
-                    y_off = self.content_height()
-                    x_off = (s_iter * Constants.slot_width) + (measure_index * Constants.measure_spacing)
-                    padding_offset = Constants.slot_spacing / 2
-                    selected = s_iter == play_manager.g_play_manager.play_time
-                    fill = [255, 0, 0, 255] if selected else [255, 255, 255, 255]
-                    self.scrub_bar_ypos = y_off
-                    scrub_r = dpg.draw_rectangle(pmin=[x_off + padding_offset, y_off + padding_offset], pmax=[x_off + Constants.slot_width - padding_offset, y_off + Constants.slot_height - padding_offset],
-                                                 fill=fill)
-
-                    play_manager.g_play_manager.scrub_slots.append(scrub_r)
+            self.draw_slots()
 
         self.resize()
+
+    def refresh(self):
+        dpg.delete_item('content_dl')
+        self.draw_slots()
 
     def detect_slot_clicked(self, pos):
         # use math to find the position instead of search/index for efficiency
@@ -298,6 +315,9 @@ class MainWindow:
         dpg.add_window(id='MIDI_Editor', width=Constants.vp_width, height=Constants.vp_height)
         self.controls.draw('MIDI_Editor')
         self.content.draw('MIDI_Editor')
+
+    def refresh(self):
+        self.content.refresh()
 
     def resize(self):
         self.controls.resize()

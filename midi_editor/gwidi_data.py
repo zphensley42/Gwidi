@@ -5,6 +5,20 @@ class MeasureInfo:
     measure_count = 3
     octaves = [2, 1, 0]
 
+    @staticmethod
+    def update_measure_count(cnt):
+        diff = MeasureInfo.measure_count - cnt
+        if diff < 0:
+            # adding (old < new)
+            for n in g_measure_info.notes:
+                n.add_slots(abs(diff) * MeasureInfo.slots_per_measure)
+        elif diff > 0:
+            # adding (old < new)
+            for n in g_measure_info.notes:
+                n.remove_slots(abs(diff) * MeasureInfo.slots_per_measure)
+
+
+
     note_vals = [
         {'label': 'C2', 'key': '8'},
         {'label': 'B', 'key': '7'},
@@ -35,6 +49,13 @@ class Note:
         total_slots = MeasureInfo.slots_per_measure * MeasureInfo.measure_count
         for i in range(total_slots):
             self.slots.append(Slot(self.note, self.octave))
+
+    def add_slots(self, num):
+        for i in range(num):
+            self.slots.append(Slot(self.note, self.octave))
+
+    def remove_slots(self, num):
+        self.slots = self.slots[0:(-1 * num)]
 
 
 class Slot:

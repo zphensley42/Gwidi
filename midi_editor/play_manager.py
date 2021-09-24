@@ -15,14 +15,14 @@ class PlayStats:
     def cb_close(self, do_save):
         if do_save:
             self.bpm = dpg.get_item_user_data(item='bpm_cnt')
-            gwidi_data.g_measure_info.measure_count = dpg.get_item_user_data(item='measure_cnt')
+            gwidi_data.MeasureInfo.update_measure_count(dpg.get_item_user_data(item='measure_cnt'))
 
             # TODO: Refresh song playback here (i.e. refresh our measures and stop the playback mechanism)
 
         dpg.delete_item('song_stats')
 
         if self.cb_closed is not None:
-            self.cb_closed()
+            self.cb_closed(do_save)
 
     def show_stats_popup(self, cb_closed):
         self.cb_closed = cb_closed
