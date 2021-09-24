@@ -12,37 +12,49 @@ import play_manager
 # TODO: Add octave selection to stats
 # TODO: Move saving / loading back in
 # TODO: Move macros back in
-# TODO: Move importing back in
+# TODO: All to remove measures from beginning as well, not just 'count' (start index)
 
 class Constants:
-    vp_width = 1000
-    vp_height = 800
-    note_labels_width = 0
-    controls_width = vp_width - 35
-    controls_height = 50
-    content_width = vp_width - 35 - note_labels_width
-
-    slot_width = 40
-    slot_height = 20
-    slot_spacing = 4
-    measure_spacing = 10
-    octave_spacing = 20
+    vp_width = None
+    vp_height = None
+    slot_width = None
+    slot_height = None
+    slot_spacing = None
+    measure_spacing = None
+    octave_spacing = None
+    main_element_spacing = None
+    controls_height = None
+    scrub_height = None
+    scrub_width = None
+    content_height = None
+    note_labels_width = None
+    scrollbar_width = None
+    controls_width = None
+    content_width = None
 
     @staticmethod
     def recalc_sizes(w, h):
         Constants.vp_width = w
         Constants.vp_height = h
-        Constants.note_labels_width = 0
-        Constants.controls_width = Constants.vp_width - 35
-        Constants.controls_height = 50
-        Constants.content_width = Constants.vp_width - 35 - Constants.note_labels_width
 
         Constants.slot_width = 40
         Constants.slot_height = 20
         Constants.slot_spacing = 4
         Constants.measure_spacing = 10
         Constants.octave_spacing = 20
+        Constants.main_element_spacing = 15
 
+        Constants.controls_height = 50
+        Constants.scrub_height = Constants.slot_height * 2
+        Constants.content_height = Constants.vp_height - Constants.controls_height - Constants.scrub_height*2 - (Constants.main_element_spacing * 2)
+
+        Constants.note_labels_width = 0
+        Constants.scrollbar_width = 25
+        Constants.controls_width = Constants.vp_width - Constants.scrollbar_width
+        Constants.content_width = Constants.vp_width - Constants.scrollbar_width
+        Constants.scrub_width = Constants.vp_width - Constants.scrollbar_width
+
+Constants.recalc_sizes(1000, 800)  # initial call
 
 
 class Controls:
@@ -54,6 +66,8 @@ class Controls:
 
     def play_finished(self):
         MouseControls.enable()
+        dpg.set_item_user_data('but_play', False)
+        dpg.configure_item('but_play', label='Play')
 
     def play_tick(self, play_time):
         measure_index = int(play_time / gwidi_data.g_measure_info.slots_per_measure)
@@ -105,7 +119,7 @@ class Controls:
         print('cb_measures_changed')
 
     def draw(self, parent):
-        with dpg.child(id='controls_panel', parent=parent):
+        with dpg.child(id='controls_panel', parent=parent, width=Constants.controls_width, height=Constants.controls_height):
             dpg.add_button(id='but_play', label="Play", callback=self.cb_play)
             dpg.set_item_user_data('but_play', False)
             dpg.add_same_line()
@@ -162,6 +176,9 @@ class Content:
         # notes are in order, first filter by channel
         sel_channel = data['selected_channel']
 
+        total_measure_count = 0
+
+        slots_to_assign = []
         for n in data['data']:
             note = data['data'][n]
             # each 'note' in data (the key) is the value of that note per the table of note values in .mid spec
@@ -173,10 +190,35 @@ class Content:
                 note_length = slot['length']
                 note_type = slot['note_type']
 
+                gwidi_data.g_measure_info.note_vals
+
                 print('slot info -- note_key: {nk}, note_octave: {no}, note_postion: {np}, note_length: {nl}, note_type: {nt}'.format(nk=note_key, no=note_octave, np=note_position, nl=note_length, nt=note_type))
 
                 # convert position to slot_index
                 # index the slot in gwidi_data and activate as necessary according to type
+                measure_ticks = midi_importer.Utility.ticks_per_beat * 4
+                ticks_per_slot = measure_ticks / gwidi_data.g_measure_info.slots_per_measure
+
+                converted_note_index = int(note_position / ticks_per_slot)
+                converted_note_length = int(note_length / ticks_per_slot)
+                converted_measure_index = int((converted_note_index + converted_note_length) / gwidi_data.g_measure_info.slots_per_measure)
+                if converted_measure_index > total_measure_count:
+                    total_measure_count = converted_measure_index
+                print('converted_note_index: {cni}, converted_note_length: {cnl}'.format(cni=converted_note_index, cnl=converted_note_length))
+
+                slots_to_assign.append({
+                    'slot_index': converted_note_index,
+                    'length_indices': converted_note_length,
+                    'note': note_key,
+                    'octave': note_octave
+                })
+
+        total_measure_count = total_measure_count + 1   # Always at least one, need to offset 0 index
+        print('New measure total: {t}'.format(t=total_measure_count))
+        gwidi_data.g_measure_info.import_data(total_measure_count, slots_to_assign)
+        g_window.refresh()
+
+        MouseControls.enable()
 
 
     def content_height(self):
@@ -186,7 +228,7 @@ class Content:
         return (len(gwidi_data.g_measure_info.notes[0].slots) * Constants.slot_width) + (gwidi_data.MeasureInfo.measure_count - 1 * Constants.measure_spacing) + 30
 
     def draw_slots(self):
-        with dpg.drawlist(parent='content_panel', id='content_dl', height=self.content_height() + 50, width=self.content_width()):
+        with dpg.drawlist(parent='content_panel', id='content_dl', height=self.content_height() + 50, width=self.content_width() + 10):
             for iter_n, n in enumerate(gwidi_data.g_measure_info.notes):
                 octave_index = int(iter_n / 8)
                 y_off = iter_n * Constants.slot_height + (octave_index * Constants.octave_spacing)
@@ -224,23 +266,6 @@ class Content:
                 if iter_n % 8 == 0:
                     self.octave_boundaries[octave_index] = y_off
 
-            for s_iter, s in enumerate(gwidi_data.g_measure_info.notes[0].slots):
-                measure_index = int(s_iter / gwidi_data.MeasureInfo.slots_per_measure)
-
-                # Draw the scrub bar
-                y_off = self.content_height()
-                x_off = (s_iter * Constants.slot_width) + (measure_index * Constants.measure_spacing)
-                padding_offset = Constants.slot_spacing / 2
-                selected = s_iter == play_manager.g_play_manager.play_time
-                fill = [255, 0, 0, 255] if selected else [255, 255, 255, 255]
-                self.scrub_bar_ypos = y_off
-                scrub_r = dpg.draw_rectangle(pmin=[x_off + padding_offset, y_off + padding_offset],
-                                             pmax=[x_off + Constants.slot_width - padding_offset,
-                                                   y_off + Constants.slot_height - padding_offset],
-                                             fill=fill)
-
-                play_manager.g_play_manager.scrub_slots.append(scrub_r)
-
 
             # Draw the measure labels
             for i in self.octave_boundaries:
@@ -275,7 +300,7 @@ class Content:
         # dpg.add_drawlist(parent=parent, id='note_labels_panel', width=Constants.note_labels_width, height=self.content_height() + 80)
         # dpg.add_same_line(parent=parent)
         # -50 width for the scrollbar
-        with dpg.child(id='content_panel', parent=parent, height=Constants.vp_height, width=Constants.content_width - 50, horizontal_scrollbar=True):
+        with dpg.child(id='content_panel', parent=parent, height=Constants.content_height, width=Constants.content_width, horizontal_scrollbar=True):
             self.draw_slots()
 
         self.resize()
@@ -284,11 +309,17 @@ class Content:
         dpg.delete_item('content_dl')
         self.measure_boundaries = {}
         self.octave_boundaries = {}
-        play_manager.g_play_manager.scrub_slots.clear()
         self.draw_slots()
 
-    def detect_slot_clicked(self, pos):
+    def detect_slot_clicked(self, p):
         # use math to find the position instead of search/index for efficiency
+
+        pos_offset = [Constants.note_labels_width, Constants.controls_height + Constants.main_element_spacing]
+        translated_pos = [
+            p[0] + dpg.get_x_scroll('content_panel') - pos_offset[0],
+            p[1] + dpg.get_y_scroll('content_panel') - pos_offset[1]
+        ]
+        pos = translated_pos
 
         measure_width = Constants.slot_width * gwidi_data.MeasureInfo.slots_per_measure
         octave_height = Constants.slot_height * len(gwidi_data.MeasureInfo.note_vals)
@@ -362,22 +393,62 @@ class Content:
 
         return detected_slot
 
-    def detect_scrub_slot_clicked(self, pos):
-        # o_time = time.time_ns()
+    def resize(self):
+        dpg.configure_item(item='content_panel', height=Constants.content_height, width=Constants.content_width)
+
+class ScrubBar:
+    def __init__(self):
+        self.scrub_bar_ypos = None
+
+    def content_width(self):
+        return (len(gwidi_data.g_measure_info.notes[0].slots) * Constants.slot_width) + (gwidi_data.MeasureInfo.measure_count - 1 * Constants.measure_spacing) + 30
+
+    def draw_slots(self):
+        with dpg.drawlist(parent='scrub_panel', id='scrub_dl', width=self.content_width() + 300, height=Constants.slot_height):
+            dpg.draw_rectangle(pmin=[0, 0], pmax=[Constants.content_width, Constants.slot_height], color=[50, 50, 50, 255])
+            for s_iter, s in enumerate(gwidi_data.g_measure_info.notes[0].slots):
+                measure_index = int(s_iter / gwidi_data.MeasureInfo.slots_per_measure)
+
+                # Draw the scrub bar
+                y_off = 0
+                x_off = (s_iter * Constants.slot_width) + (measure_index * Constants.measure_spacing)
+                padding_offset = Constants.slot_spacing / 2
+                selected = s_iter == play_manager.g_play_manager.play_time
+                fill = [255, 0, 0, 255] if selected else [255, 255, 255, 255]
+                scrub_r = dpg.draw_rectangle(pmin=[x_off + padding_offset, y_off + padding_offset],
+                                             pmax=[x_off + Constants.slot_width - padding_offset,
+                                                   y_off + Constants.slot_height - padding_offset],
+                                             fill=fill)
+
+                play_manager.g_play_manager.scrub_slots.append(scrub_r)
+
+    def draw(self, parent):
+        with dpg.child(parent=parent, id='scrub_panel', height=Constants.scrub_height, width=Constants.scrub_width, no_scrollbar=True):
+            self.draw_slots()
+
+
+    def detect_slot_clicked(self, p):
+        pos_offset = [Constants.note_labels_width, Constants.controls_height + Constants.main_element_spacing + Constants.content_height + Constants.main_element_spacing]
+        translated_pos = [
+            p[0] + dpg.get_x_scroll('content_panel') - pos_offset[0],
+            p[1] - pos_offset[1]
+        ]
+        pos = translated_pos
 
         in_scrub_bar_y = False
-        if self.scrub_bar_ypos <= pos[1] <= (self.scrub_bar_ypos + Constants.slot_height):
+        if 0 <= pos[1] <= Constants.slot_height:
+            # if self.scrub_bar_ypos is not None and self.scrub_bar_ypos <= pos[1] <= (self.scrub_bar_ypos + Constants.slot_height):
             in_scrub_bar_y = True
 
-        # print('pos[1]: {p1}, detect_scrub_slot_clicked, in_scrub_bar_y: {iny}, scrub_bar_ypos: {yp}'.format(p1=pos[1], iny=in_scrub_bar_y, yp=self.scrub_bar_ypos))
+        print('pos[1]: {p1}, detect_scrub_slot_clicked, in_scrub_bar_y: {iny}, scrub_bar_ypos: {yp}'.format(p1=pos[1], iny=in_scrub_bar_y, yp=self.scrub_bar_ypos))
         if not in_scrub_bar_y:
             return None
 
         # Only need to determine the slot index
         measure_width = Constants.slot_width * gwidi_data.MeasureInfo.slots_per_measure
         measure_boundary = None
-        for i in self.measure_boundaries:
-            boundary = self.measure_boundaries[i]
+        for i in g_window.content.measure_boundaries:
+            boundary = g_window.content.measure_boundaries[i]
 
             begin = boundary
             end = begin + measure_width
@@ -414,13 +485,19 @@ class Content:
         # print('time check 4: {t}'.format(t=(time.time_ns()-o_time) / 1000000))
         return detected_slot
 
+    def refresh(self):
+        dpg.delete_item('scrub_dl')
+        play_manager.g_play_manager.scrub_slots.clear()
+        self.draw_slots()
+
     def resize(self):
-        dpg.configure_item(item='content_panel', width=Constants.content_width)
+        dpg.configure_item('scrub_panel', height=Constants.scrub_height, width=Constants.scrub_width)
 
 class MainWindow:
     def __init__(self):
         self.controls = Controls()
         self.content = Content()
+        self.scrub_bar = ScrubBar()
 
         ifd = dpg.add_file_dialog(modal=True, show=False, callback=self.import_selected, id="import_sel", default_path="./../assets/midi_test/")
         dpg.add_file_extension(extension=".mid", parent=ifd)
@@ -435,18 +512,30 @@ class MainWindow:
     def draw(self):
         dpg.add_window(id='MIDI_Editor', width=Constants.vp_width, height=Constants.vp_height, no_scrollbar=True, on_close=self.close)
         self.controls.draw('MIDI_Editor')
+        dpg.add_dummy(parent='MIDI_Editor', height=Constants.main_element_spacing)
         self.content.draw('MIDI_Editor')
+        dpg.add_dummy(parent='MIDI_Editor', height=Constants.main_element_spacing)
+        self.scrub_bar.draw('MIDI_Editor')
+
+    def render_callback(self):
+        # synchronize scrolls for 2 panels
+        sx = dpg.get_x_scroll('content_panel')
+        msx = dpg.get_x_scroll_max('content_panel')
+        if sx <= msx:
+            dpg.set_x_scroll('scrub_panel', sx)
 
     def refresh(self):
         self.content.refresh()
+        self.scrub_bar.refresh()
 
     def resize(self):
         self.controls.resize()
         self.content.resize()
+        self.scrub_bar.resize()
 
     def delegate_mouse_detect(self, pos):
         self.content.detect_slot_clicked(pos)
-        self.content.detect_scrub_slot_clicked(pos)
+        self.scrub_bar.detect_slot_clicked(pos)
 
 
 
@@ -485,19 +574,13 @@ class MouseControls:
         if self.pos[1] < Constants.controls_height:
             return
 
-        pos_offset = [Constants.note_labels_width, Constants.controls_height]
-
-        translated_pos = [
-            self.pos[0] + dpg.get_x_scroll('content_panel') - pos_offset[0],
-            self.pos[1] + dpg.get_y_scroll('content_panel') - pos_offset[1]
-        ]
-        dstr = 'pos: {p}, translated_pos: {p2}, data: {d}'.format(p=self.pos, p2=translated_pos, d=data)
+        dstr = 'pos: {p}, data: {d}'.format(p=self.pos, d=data)
         dpg.configure_item(item='debug_text', default_value=dstr)
 
         if not self.triggered:
             return
         # print('handle_mouse_moved: {d}'.format(d=self.pos))
-        self.trigger_cb(translated_pos)
+        self.trigger_cb(self.pos)
 
     def handle_mouse_down(self, sender, data):
         if not MouseControls.controls_enabled:
@@ -549,7 +632,11 @@ def start_editor():
     dpg.set_primary_window("MIDI_Editor", True)
     dpg.set_viewport_title("Gwidi")
 
-    dpg.start_dearpygui()
+    while dpg.is_dearpygui_running():
+        g_window.render_callback()
+        dpg.render_dearpygui_frame()
+
+    dpg.cleanup_dearpygui()
 
 
 

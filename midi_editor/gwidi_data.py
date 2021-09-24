@@ -33,6 +33,13 @@ class MeasureInfo:
         {'label': 'C1', 'key': '1'},
     ]
 
+    @staticmethod
+    def index_of_note_val(note):
+        for iter, nv in enumerate(MeasureInfo.note_vals):
+            if nv['label'] == note:
+                return iter
+        return None
+
     notes = []
     def __init__(self):
         self.fill()
@@ -47,6 +54,33 @@ class MeasureInfo:
     def clear(self):
         MeasureInfo.notes.clear()
         self.fill()
+
+    def import_data(self, measure_count, imported_slots):
+        print('importing data -- measure_count: {m}'.format(m=measure_count))
+        MeasureInfo.notes.clear()
+        MeasureInfo.measure_count = measure_count
+        self.fill()
+
+        # Cycle through imported slots and assign as appropriate
+        for slot in imported_slots:
+            note_val_index = MeasureInfo.index_of_note_val(slot['note'])
+            if note_val_index is None:
+                continue
+            note_index = int((slot['octave'] * len(MeasureInfo.note_vals)) + note_val_index)
+
+            # print('notes: {n}, len: {l}'.format(n=MeasureInfo.notes, l=len(MeasureInfo.notes)))
+            # print('notes 2: {n}'.format(n=MeasureInfo.notes[note_index]))
+            # print('notes 3: {n}'.format(n=MeasureInfo.notes[note_index].slots))
+            # print('slot: {s}'.format(s=slot))
+            # print('note_index: {n}'.format(n=note_index))
+
+            MeasureInfo.notes[note_index].slots[slot['slot_index']].activated = True
+
+            # hold notes in the length indices
+            for i in range(slot['length_indices']):
+                if i == 0:
+                    continue
+                MeasureInfo.notes[note_index].slots[slot['slot_index'] + i].is_held = True
 
 
 # Each note can be used to fill a horizontal list of slots that are marked as activated / held etc

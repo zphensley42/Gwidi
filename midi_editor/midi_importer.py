@@ -159,6 +159,7 @@ class MidiImporter:
 
         imported = MidiFile(data['file_path_name'], clip=True)
         Note.ticks_per_beat = imported.ticks_per_beat
+        Utility.ticks_per_beat = imported.ticks_per_beat
         LogUtil.log('imported midi file')
         for m in imported.tracks[0]:
             if m.type == 'set_tempo':
