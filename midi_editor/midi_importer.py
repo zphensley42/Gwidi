@@ -256,6 +256,7 @@ class MidiImporter:
         for tc in self.table_children:
             dpg.configure_item(tc, width=item_width)
 
+    # TODO: Need to apply theme to ensure there is good spacing when we've overwritten the default theme already
     def start_importer(self, fname, select_complete_cb):
         self.select_complete_cb = select_complete_cb
 

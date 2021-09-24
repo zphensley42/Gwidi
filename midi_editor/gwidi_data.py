@@ -3,7 +3,8 @@ import dearpygui.dearpygui as dpg
 class MeasureInfo:
     slots_per_measure = 16
     measure_count = 3
-    octaves = [2, 1, 0]
+    octaves = [8, 7, 6, 5, 4, 3, 2, 1, 0]
+    selected_octaves = [4, 5, 6]
 
     @staticmethod
     def update_measure_count(cnt):
@@ -16,6 +17,8 @@ class MeasureInfo:
             # adding (old < new)
             for n in g_measure_info.notes:
                 n.remove_slots(abs(diff) * MeasureInfo.slots_per_measure)
+
+        MeasureInfo.measure_count = cnt
 
 
 
@@ -32,10 +35,18 @@ class MeasureInfo:
 
     notes = []
     def __init__(self):
+        self.fill()
+
+    def fill(self):
         for o in MeasureInfo.octaves:
             for nv in MeasureInfo.note_vals:
                 # each nv / octave is a row of slots, go in order of octave -> notes
                 MeasureInfo.notes.append(Note(nv, o))
+
+
+    def clear(self):
+        MeasureInfo.notes.clear()
+        self.fill()
 
 
 # Each note can be used to fill a horizontal list of slots that are marked as activated / held etc
@@ -69,6 +80,14 @@ class Slot:
         self.is_playing = False
         self.rect = None
         self.rect_text = None
+
+    def play(self):
+        self.is_playing = True
+        self.refresh()
+
+    def finished_playing(self):
+        self.is_playing = False
+        self.refresh()
 
     def drawn(self, rect, rect_text):
         self.rect = rect
@@ -118,13 +137,16 @@ class Slot:
         elif self.is_held:
             return [0, 255, 255, 255]
         else:
-            return [255, 255, 255, 255]
+            if self.octave in g_measure_info.selected_octaves:
+                return [255, 255, 255, 255]
+            else:
+                return [150, 150, 150, 255]
 
     def color(self):
         if self.is_playing:
-            return [0, 0, 255, 0]
+            return [0, 0, 255, 255]
         else:
-            return [255, 255, 255, 255]
+            return [0, 0, 0, 255]
 
 
 g_measure_info = None
