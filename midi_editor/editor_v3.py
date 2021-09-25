@@ -182,11 +182,29 @@ class Controls:
         print('controls resize')
         dpg.configure_item(item='controls_panel', width=Constants.controls_width, height=Constants.controls_height)
 
+# TODO: Make a ui class for slots and save their positions and sizes so that they can be used in the render callback
+# to hide when not in range of the scrolled viewport display
 class Content:
+
+    class ContentUiEventHandler(event_queue.Handler):
+        def handles(self, m_what):
+            return m_what == 3 or m_what == 4
+
+        def handle(self, msg):
+            if msg['what'] == 3:
+                for s in msg['params']['slots']:
+                    s.play()
+            elif msg['what'] == 4:
+                for s in msg['params']['slots']:
+                    s.finished_playing()
+
     def __init__(self):
         self.measure_boundaries = {}
         self.octave_boundaries = {}
         self.scrub_bar_ypos = None
+
+        self.ui_event_handler = Content.ContentUiEventHandler()
+        event_queue.g_event_queue.subscribe(self.ui_event_handler)
 
     # TODO: This should change for different mode strategies of picking notes to match sharps / flats
     @staticmethod

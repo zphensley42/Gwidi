@@ -4,6 +4,8 @@ import threading, queue
 # Known messages:
 # {'what': 1, 'desc': 'update_scrub_playout', 'params': {}}
 # {'what': 2, 'desc': 'update_playout_x_scroll', 'params': {'play_time': 0}}
+# {'what': 3, 'desc': 'update_notes_playing', 'params': {'slots': [index1, index2, index3]}}
+# {'what': 4, 'desc': 'update_notes_finished_playing', 'params': {'slots': [index1, index2, index3]}}
 
 class Handler:
     def handles(self, m_what):

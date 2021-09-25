@@ -128,6 +128,7 @@ class Slot:
         self.rect_text = rect_text
 
     def refresh(self):
+
         dpg.configure_item(self.rect, fill=self.fill(), color=self.color())
 
     def activate(self):

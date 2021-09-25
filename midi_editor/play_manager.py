@@ -3,15 +3,19 @@ import gwidi_data
 import threading, time
 import event_queue
 
-# for osx
-# class pydirectinput:
-#     @staticmethod
-#     def press(key):
-#         keyboard.press_and_release(key)
-# import keyboard
 
-import pydirectinput
-pydirectinput.PAUSE = 0
+from sys import platform
+if platform == "linux" or platform == "linux2":
+    print('linux not tested currently')
+elif platform == "darwin":
+    import keyboard
+    class pydirectinput:
+        @staticmethod
+        def press(key):
+            keyboard.press_and_release(key)
+elif platform == "win32":
+    import pydirectinput
+    pydirectinput.PAUSE = 0
 
 class PlayStats:
     def __init__(self):
@@ -38,8 +42,6 @@ class PlayStats:
             gwidi_data.MeasureInfo.selected_octaves[0] = dpg.get_item_user_data(item='octave_0_sel')
             gwidi_data.MeasureInfo.selected_octaves[1] = dpg.get_item_user_data(item='octave_1_sel')
             gwidi_data.MeasureInfo.selected_octaves[2] = dpg.get_item_user_data(item='octave_2_sel')
-
-            # TODO: Refresh song playback here (i.e. refresh our measures and stop the playback mechanism)
 
         dpg.delete_item('song_stats')
 
@@ -170,7 +172,6 @@ class PlayManager:
 
         self.sample_manager = None
 
-    # TODO: Scrub reconfiguring all items is an issue, probably just reconfigure the specific ones instead (store the configured, etc)
     def scrub(self, t):
         # reconfigure the old first
         dpg.configure_item(self.scrub_slots[self.play_time_start], fill=[255, 255, 255, 255])
@@ -185,8 +186,6 @@ class PlayManager:
     def play_slot(self, slot):
         print('playing slot: {s}'.format(s=slot))
 
-        # TODO: slot.play() should be moved to UI event
-        slot.play()
         note_to_play = slot.note
         self.sample_manager.push_sample({'key': note_to_play['key'], 'note': note_to_play['label'], 'octave': slot.octave})
 
@@ -228,8 +227,7 @@ class PlayManager:
 
         # TODO: This should also be moved to the UI event thread as it makes UI changes
         print('play_time: {p}'.format(p=self.play_time))
-        for s in self.last_played:
-            s.finished_playing()
+        event_queue.g_event_queue.push_msg({'what': 4, 'desc': 'update_notes_finished_playing', 'params': {'slots': self.last_played.copy()}})
         self.last_played.clear()
 
         print('time check 1: {t}'.format(t=(time.time_ns() - ot) / 1000000))
@@ -276,17 +274,16 @@ class PlayManager:
             self.last_played.append(s)
         self.last_played_octave = to_play['octave_ind']
 
+        event_queue.g_event_queue.push_msg({'what': 3, 'desc': 'update_notes_playing', 'params': {'slots': self.last_played.copy()}})
+
         print('time check 6: {t}'.format(t=(time.time_ns() - ot) / 1000000))
 
-        # TODO: Spawn to diff thread? (UI handler thread)
         # update the playout on scrub
-        # dpg.configure_item(self.scrub_slots[self.play_time - 1], fill=[255, 255, 255, 255])
-        # dpg.configure_item(self.scrub_slots[self.play_time], fill=[0, 0, 255, 255])
         event_queue.g_event_queue.push_msg({'what': 1, 'desc': 'update_scrub_playout', 'params': {}})
 
         print('time check 7: {t}'.format(t=(time.time_ns() - ot) / 1000000))
 
-        # Update our scroll position during playback (TODO: Move this to a CB in editor)
+        # Should probably just combine this with the scrub playout above
         event_queue.g_event_queue.push_msg({'what': 2, 'desc': 'update_playout_x_scroll', 'params': {'play_time': self.play_time}})
 
 
@@ -297,8 +294,7 @@ class PlayManager:
         if self.play_finished_cb is not None:
             self.play_finished_cb()
 
-        for s in self.last_played:
-            s.finished_playing()
+        event_queue.g_event_queue.push_msg({'what': 4, 'desc': 'update_notes_finished_playing', 'params': {'slots': self.last_played.copy()}})
         self.last_played.clear()
 
         dpg.configure_item(self.scrub_slots[self.play_time - 1], fill=[255, 255, 255, 255])
