@@ -1,6 +1,7 @@
 import dearpygui.dearpygui as dpg
 import gwidi_data
 import threading, time
+import event_queue
 
 # for osx
 # class pydirectinput:
@@ -165,7 +166,6 @@ class PlayManager:
         self.last_played_octave = 1
 
         self.play_thread = None
-        self.tick_cb = None
         self.play_finished_cb = None
 
         self.sample_manager = None
@@ -184,6 +184,8 @@ class PlayManager:
 
     def play_slot(self, slot):
         print('playing slot: {s}'.format(s=slot))
+
+        # TODO: slot.play() should be moved to UI event
         slot.play()
         note_to_play = slot.note
         self.sample_manager.push_sample({'key': note_to_play['key'], 'note': note_to_play['label'], 'octave': slot.octave})
@@ -217,18 +219,26 @@ class PlayManager:
     def tick(self):
         self.play_time += 1
 
+        ot = time.time_ns()
+        print('time check 0: {t}'.format(t=(time.time_ns() - ot) / 1000000))
+
         if self.play_time >= (gwidi_data.g_measure_info.measure_count * gwidi_data.g_measure_info.slots_per_measure):
             self.finish()
             return
 
+        # TODO: This should also be moved to the UI event thread as it makes UI changes
         print('play_time: {p}'.format(p=self.play_time))
         for s in self.last_played:
             s.finished_playing()
         self.last_played.clear()
 
+        print('time check 1: {t}'.format(t=(time.time_ns() - ot) / 1000000))
+
         # each play_time, determine the desired octave via what notes are available (and the default)
         octaves = gwidi_data.g_measure_info.selected_octaves
         cur_slots = {}
+
+        print('time check 2: {t}'.format(t=(time.time_ns() - ot) / 1000000))
 
         for o in octaves:
             cur_slots[o] = []
@@ -237,7 +247,11 @@ class PlayManager:
                 if n.octave == o and slot.activated:
                     cur_slots[o].append(slot)
 
+        print('time check 3: {t}'.format(t=(time.time_ns() - ot) / 1000000))
+
         to_play = self.select_slots_by_mode(cur_slots)
+
+        print('time check 4: {t}'.format(t=(time.time_ns() - ot) / 1000000))
 
         print('selected_octaves: {p0}, cur_slots: {p1}, to_play: {p2}'.format(p0=octaves, p1=cur_slots, p2=to_play))
 
@@ -248,26 +262,35 @@ class PlayManager:
             for i in range(to_play['octave_ind'] - self.last_played_octave):
                 print('moving octave down')
                 pydirectinput.press('9')  # move down
-                time.sleep(0.05)
+                time.sleep(0.01)
         elif to_play['octave_ind'] < self.last_played_octave:
             for i in range(self.last_played_octave - to_play['octave_ind']):
                 print('moving octave up')
                 pydirectinput.press('0')  # move up
-                time.sleep(0.05)
+                time.sleep(0.01)
+
+        print('time check 5: {t}'.format(t=(time.time_ns() - ot) / 1000000))
 
         for s in to_play['slots']:
             self.play_slot(s)
             self.last_played.append(s)
         self.last_played_octave = to_play['octave_ind']
 
+        print('time check 6: {t}'.format(t=(time.time_ns() - ot) / 1000000))
+
+        # TODO: Spawn to diff thread? (UI handler thread)
         # update the playout on scrub
-        dpg.configure_item(self.scrub_slots[self.play_time - 1], fill=[255, 255, 255, 255])
-        dpg.configure_item(self.scrub_slots[self.play_time], fill=[0, 0, 255, 255])
+        # dpg.configure_item(self.scrub_slots[self.play_time - 1], fill=[255, 255, 255, 255])
+        # dpg.configure_item(self.scrub_slots[self.play_time], fill=[0, 0, 255, 255])
+        event_queue.g_event_queue.push_msg({'what': 1, 'desc': 'update_scrub_playout', 'params': {}})
+
+        print('time check 7: {t}'.format(t=(time.time_ns() - ot) / 1000000))
 
         # Update our scroll position during playback (TODO: Move this to a CB in editor)
-        if self.tick_cb is not None:
-            self.tick_cb(self.play_time)
+        event_queue.g_event_queue.push_msg({'what': 2, 'desc': 'update_playout_x_scroll', 'params': {'play_time': self.play_time}})
 
+
+        print('time check 8: {t}'.format(t=(time.time_ns() - ot) / 1000000))
 
 
     def finished(self):
@@ -281,13 +304,12 @@ class PlayManager:
         dpg.configure_item(self.scrub_slots[self.play_time - 1], fill=[255, 255, 255, 255])
         dpg.configure_item(self.scrub_slots[self.play_time_start], fill=[255, 0, 0, 255])
 
-    def play(self, tick_cb, finished_cb):
+    def play(self, finished_cb):
         self.stop()
 
         self.sample_manager = SampleManager()
         self.sample_manager.start()
 
-        self.tick_cb = tick_cb
         self.play_finished_cb = finished_cb
         self.play_time = self.play_time_start - 1   # -1 so that we 'start' and tick to the real start time
         self.play_thread = PlayThread()

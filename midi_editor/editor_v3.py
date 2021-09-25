@@ -1,3 +1,4 @@
+import threading
 import time
 import dearpygui.dearpygui as dpg
 import dearpygui.demo
@@ -8,16 +9,20 @@ import midi_importer
 import gwidi_data
 import play_manager
 import macro_manager
+import event_queue
 
 # TODO: Move scrub bar to different panel and synchronize the scrolling instead?
 # TODO: Add octave selection to stats
 # TODO: Move saving / loading back in
-# TODO: Move macros back in
 # TODO: All to remove measures from beginning as well, not just 'count' (start index)
 # TODO: Option to pick different defaults on different measures (i.e. override which octave is played on that measure)
 # TODO: Import option that converts notes differently (i.e. C#->C, C ->D vs C#->C, C->C)
 # TODO: Add options for how the system 'picks' which octave in case of multiple notes
 # - options: highest # of notes, highest octave, lowest octave, specified default
+# TODO: Check if 'hiding' drawn rectangles that are not 'visible' (not scrolled into view) helps performance with high measure counts
+# TODO: Move more UI event stuff out of play tick (slot.play / slot.play_finished / etc)
+
+
 
 class Constants:
     vp_width = None
@@ -74,11 +79,6 @@ class Controls:
         dpg.set_item_user_data('but_play', False)
         dpg.configure_item('but_play', label='Play')
 
-    def play_tick(self, play_time):
-        measure_index = int(play_time / gwidi_data.g_measure_info.slots_per_measure)
-        sx = (Constants.slot_width * play_time) + (Constants.measure_spacing * measure_index)
-        dpg.set_x_scroll('content_panel', sx)
-
     def cb_play(self):
         print('cb_play')
         toggled_state = not dpg.get_item_user_data('but_play')
@@ -88,7 +88,7 @@ class Controls:
 
         if toggled_state:
             MouseControls.disable()
-            play_manager.g_play_manager.play(self.play_tick, self.play_finished)
+            play_manager.g_play_manager.play(self.play_finished)
         else:
             play_manager.g_play_manager.stop()
 
@@ -188,6 +188,24 @@ class Content:
         self.octave_boundaries = {}
         self.scrub_bar_ypos = None
 
+    # TODO: This should change for different mode strategies of picking notes to match sharps / flats
+    @staticmethod
+    def pick_closest_note_key(note_length_key):
+        # for now, go 'down'
+        # notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+        if note_length_key == 'C#':
+            return 'C1'
+        elif note_length_key == 'D#':
+            return 'D'
+        elif note_length_key == 'F#':
+            return 'F'
+        elif note_length_key == 'G#':
+            return 'G'
+        elif note_length_key == 'A#':
+            return 'A'
+        else:
+            return note_length_key
+
     def perform_import(self, data):
         print('performing import on data: {d}'.format(d=data))
 
@@ -233,7 +251,7 @@ class Content:
                 slots_to_assign.append({
                     'slot_index': converted_note_index,
                     'length_indices': converted_note_length,
-                    'note': note_key,
+                    'note': Content.pick_closest_note_key(note_key),
                     'octave': len(gwidi_data.g_measure_info.octaves) - note_octave
                 })
 
@@ -421,8 +439,29 @@ class Content:
         dpg.configure_item(item='content_panel', height=Constants.content_height, width=Constants.content_width)
 
 class ScrubBar:
+
+    class ScrubBarUiEventHandler(event_queue.Handler):
+        def handles(self, m_what):
+            if m_what == 1 or m_what == 2:
+                return True
+            return False
+
+        def handle(self, msg):
+            if msg['what'] == 1:
+                dpg.configure_item(play_manager.g_play_manager.scrub_slots[play_manager.g_play_manager.play_time - 1], fill=[255, 255, 255, 255])
+                dpg.configure_item(play_manager.g_play_manager.scrub_slots[play_manager.g_play_manager.play_time], fill=[0, 0, 255, 255])
+            elif msg['what'] == 2:
+                play_time = msg['params']['play_time']
+                measure_index = int(play_time / gwidi_data.g_measure_info.slots_per_measure)
+                sx = (Constants.slot_width * play_time) + (Constants.measure_spacing * measure_index)
+                dpg.set_x_scroll('content_panel', sx)
+            return
+
     def __init__(self):
         self.scrub_bar_ypos = None
+        self.event_handler = ScrubBar.ScrubBarUiEventHandler()
+        event_queue.g_event_queue.subscribe(self.event_handler)
+
 
     def content_width(self):
         return (len(gwidi_data.g_measure_info.notes[0].slots) * Constants.slot_width) + (gwidi_data.MeasureInfo.measure_count - 1 * Constants.measure_spacing) + 30
