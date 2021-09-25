@@ -7,6 +7,7 @@ from dearpygui.demo import show_demo
 import midi_importer
 import gwidi_data
 import play_manager
+import macro_manager
 
 # TODO: Move scrub bar to different panel and synchronize the scrolling instead?
 # TODO: Add octave selection to stats
@@ -108,8 +109,15 @@ class Controls:
         MouseControls.disable()  # TODO: Need to re-enable elsewhere
         dpg.show_item("import_sel")
 
+    def on_play_stop_action(self):
+        print('on_play_stop_action')
+
+    def on_file_action(self, param):
+        print('on_file_action: {p}'.format(p=param))
+
     def cb_macros(self):
         print('cb_macros')
+        macro_manager.MacroManager.show_macros(self.on_play_stop_action, self.on_file_action)
 
     def cb_stats(self):
         print('cb_stats')

@@ -1,0 +1,1 @@
+[{"macro": "Play / Stop", "val": [49, 50], "param": null, "param_enabled": false, "action": "play_stop"}, {"macro": "Load File 1", "val": [81, 49], "param": "test1.gwm", "param_enabled": true, "action": "load_file"}, {"macro": "Load File 2", "val": [81, 52], "param": "test2.gwm", "param_enabled": true, "action": "load_file"}]
