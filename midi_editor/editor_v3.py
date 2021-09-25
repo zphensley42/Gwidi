@@ -111,6 +111,7 @@ class Controls:
 
     def on_play_stop_action(self):
         print('on_play_stop_action')
+        self.cb_play()
 
     def on_file_action(self, param):
         print('on_file_action: {p}'.format(p=param))
@@ -129,6 +130,12 @@ class Controls:
 
     def cb_measures_changed(self):
         print('cb_measures_changed')
+
+    def cb_sounds_enabled(self):
+        print('cb_sounds_enabled')
+        stat = not dpg.get_item_user_data('cb_sounds')
+        dpg.set_item_user_data('cb_sounds', stat)
+        play_manager.g_play_stats.sounds_enabled = stat
 
     def draw(self, parent):
         with dpg.child(id='controls_panel', parent=parent, width=Constants.controls_width, height=Constants.controls_height):
@@ -158,6 +165,11 @@ class Controls:
             dpg.add_dummy(width=10)
             dpg.add_same_line()
             dpg.add_button(id='but_stats', label="Stats", callback=self.cb_stats)
+            dpg.add_same_line()
+            dpg.add_dummy(width=10)
+            dpg.add_same_line()
+            dpg.add_checkbox(id='cb_sounds', label="Play Sounds", callback=self.cb_sounds_enabled)
+            dpg.set_item_user_data('cb_sounds', False)
 
 
 
@@ -638,6 +650,7 @@ def start_editor():
     dpg.set_viewport_resize_callback(callback=on_viewport_resize)
 
     g_window.draw()
+    macro_manager.init_macros(g_window.controls.on_play_stop_action, g_window.controls.on_file_action)
 
     dpg.set_viewport_width(Constants.vp_width)
     dpg.set_viewport_height(Constants.vp_height)

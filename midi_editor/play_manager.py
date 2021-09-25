@@ -3,21 +3,21 @@ import gwidi_data
 import threading, time
 
 # for osx
-class pydirectinput:
-    @staticmethod
-    def press(key):
-        keyboard.press_and_release(key)
-import keyboard
+# class pydirectinput:
+#     @staticmethod
+#     def press(key):
+#         keyboard.press_and_release(key)
+# import keyboard
 
-# import pydirectinput
-# pydirectinput.PAUSE = 0
+import pydirectinput
+pydirectinput.PAUSE = 0
 
 class PlayStats:
     def __init__(self):
         self.bpm = 120
         self.cb_closed = None
         self.default_octave = 1
-        self.sounds_enabled = True
+        self.sounds_enabled = False
         self.samples_dir = './../assets/samples'
 
         # options: HighestOctave, LowestOctave, HighestActiveSlots, SpecifiedDefault
@@ -55,7 +55,7 @@ class PlayStats:
 
             dpg.add_dummy(width=20)
             dpg.add_same_line()
-            dpg.add_input_int(id='bpm_cnt', label='BPM', default_value=self.bpm, callback=self.cb_input_changed)
+            dpg.add_input_int(id='bpm_cnt', label='BPM', default_value=self.bpm, callback=self.cb_input_changed, max_value=300, min_value=1)
             dpg.set_item_user_data('bpm_cnt', self.bpm)
             dpg.add_same_line()
             dpg.add_dummy(width=20)
@@ -63,7 +63,7 @@ class PlayStats:
             dpg.add_dummy(height=10)
             dpg.add_dummy(width=20)
             dpg.add_same_line()
-            dpg.add_input_int(id='measure_cnt', label="# Measures", default_value=gwidi_data.g_measure_info.measure_count, callback=self.cb_input_changed)
+            dpg.add_input_int(id='measure_cnt', label="# Measures", default_value=gwidi_data.g_measure_info.measure_count, callback=self.cb_input_changed, min_value=1)
             dpg.set_item_user_data('measure_cnt', gwidi_data.g_measure_info.measure_count)
             dpg.add_same_line()
             dpg.add_dummy(width=20)
@@ -340,11 +340,13 @@ class SampleManager(threading.Thread):
 
             if g_play_stats.sounds_enabled:
                 threading.Thread(target=SampleManager.play_sample, args=(sample['note'], sample['octave'],), daemon=True).start()
-                threading.Thread(target=SampleManager.play_input, args=(sample['key'],), daemon=True).start()
+            # threading.Thread(target=SampleManager.play_input, args=(sample['key'],), daemon=True).start()
+            pydirectinput.press(sample['key'])
             self.sample_queue.task_done()
 
     @staticmethod
     def play_input(key):
+        print('play_input: ' + key)
         pydirectinput.press(key)
 
     @staticmethod

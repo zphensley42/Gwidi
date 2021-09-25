@@ -49,7 +49,6 @@ class Utility:
     @staticmethod
     def macro_action_play_stop():
         print('macro_action_play_stop')
-        # TODO: call callback to owner
         if Utility.play_stop_cb is not None:
             Utility.play_stop_cb()
 
@@ -134,21 +133,14 @@ class UIMacro:
         print('update_param data={d}'.format(d=data))
         dpg.set_item_user_data(sender, data)
 
-    def save_param(self, new_param):
-        self.preference['param'] = new_param
-        self.close_input(False)
+    def save_param(self, sender, data):
+        self.preference['param'] = data['file_path_name']
+        MacroManager.prefs.save()
+        MacroManager.show_macros(Utility.play_stop_cb, Utility.file_cb)
 
     def show_param_input(self):
-        px = (dpg.get_viewport_width() - 200) / 2
-        py = (dpg.get_viewport_height() - 100) / 2
-
-        with dpg.window(id='param_key_input_window', popup=True, modal=True, label='Param Input', width=200, height=100, pos=[px, py],
-                        no_close=True, no_resize=False, no_move=False) as w:
-
-            t = dpg.add_input_text(default_value=self.preference['param'], pos=[20, 100 / 2 - 10], callback=self.update_param)
-            dpg.add_button(label="OK", width=50, pos=[20, 100 - 30], callback=lambda: self.save_param(dpg.get_item_user_data(t)))
-            dpg.add_button(label="Cancel", width=50, pos=[200 - 20 - 50, 100 - 30],
-                           callback=lambda: self.save_param(self.preference['param']))
+        dpg.set_item_callback('macro_file_sel', self.save_param)
+        dpg.show_item('macro_file_sel')
 
 
     # Purpose is to update the 'val' property of preference with whatever is input on the 'dialog'
@@ -257,7 +249,6 @@ class MacroManager:
         dpg.add_button(id='add_macro_button', parent='configure_macros_window', label="Add File Macro", callback=MacroManager.add_file_macro)
         dpg.add_button(id='save_macros_button', parent='configure_macros_window', label="Save Macros", callback=MacroManager.save_macros)
 
-
     @staticmethod
     def show_macros(play_stop_cb, file_cb):
         Utility.play_stop_cb = play_stop_cb
@@ -267,6 +258,10 @@ class MacroManager:
         px = (dpg.get_viewport_width() - w) / 2
         py = (dpg.get_viewport_height() - h) / 2
         dpg.add_window(id='configure_macros_window', label='Configure Macros', width=w, height=400, pos=[px, py], modal=True, popup=True, on_close=lambda: MacroManager.hide_macros())
+
+        if not dpg.does_item_exist('macro_file_sel'):
+            m_fd = dpg.add_file_dialog(modal=True, show=False, id="macro_file_sel", default_path="./../assets/midi_test/")
+            dpg.add_file_extension(extension=".mid", parent=m_fd)
 
         Utility.clear_macros()  # Ensure we don't suppress while assigning macros
         MacroManager.prefs.load()
@@ -303,6 +298,12 @@ def res_cb(sender, data):
     dpg.configure_item('configure_macros_window', width=dpg.get_viewport_width(), height=dpg.get_viewport_height())
 
 
+def init_macros(play_stop_cb, on_file_cb):
+    Utility.play_stop_cb = play_stop_cb
+    Utility.file_cb = on_file_cb
+
+    MacroManager.prefs.load()
+    Utility.assign_macros()
 
 
 def on_play_stop_action():
