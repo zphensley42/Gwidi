@@ -6,6 +6,8 @@ import threading, queue
 # {'what': 2, 'desc': 'update_playout_x_scroll', 'params': {'play_time': 0}}
 # {'what': 3, 'desc': 'update_notes_playing', 'params': {'slots': [index1, index2, index3]}}
 # {'what': 4, 'desc': 'update_notes_finished_playing', 'params': {'slots': [index1, index2, index3]}}
+# {'what': 5, 'desc': 'import_data_ready', 'params': {'data': data}}
+# {'what': 6, 'desc': 'refresh_content', 'params': {}}
 
 class Handler:
     def handles(self, m_what):

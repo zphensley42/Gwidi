@@ -2,6 +2,8 @@ from mido import MidiFile, second2tick
 import dearpygui.dearpygui as dpg
 from inspect import currentframe, getframeinfo
 from inspect import currentframe, stack
+import thread_pool
+import event_queue
 
 # https://www.twilio.com/blog/working-with-midi-data-in-python-using-mido
 # http://www.music.mcgill.ca/~ich/classes/mumt306/StandardMIDIfileformat.html
@@ -139,14 +141,13 @@ class MidiImporter:
     def __init__(self):
         self.table_children = []
         self.table_children_x_off = 100
-        self.select_complete_cb = None
         self.item_width = 900
         self.item_height = 600
 
     def select_data(self, sender, data):
         data = dpg.get_item_user_data(sender)
-        self.select_complete_cb(data)
         dpg.delete_item(item="importer_main_window")
+        event_queue.g_event_queue.push_msg({'what': 5, 'desc': 'import_data_ready', 'params': {'data': data}})
 
     # 'on' times > 0 mean ticks since the last note (not the last note in the stack), thus the parsing cursor is import for tracking the last position
     # note 50 [{position: 768, length: 96}]
@@ -258,9 +259,7 @@ class MidiImporter:
             dpg.configure_item(tc, width=item_width)
 
     # TODO: Need to apply theme to ensure there is good spacing when we've overwritten the default theme already
-    def start_importer(self, fname, select_complete_cb):
-        self.select_complete_cb = select_complete_cb
-
+    def start_importer(self, fname):
         with dpg.window(label="Gwidi MIDI Importer", id="importer_main_window", modal=True, popup=True, on_close=lambda: dpg.delete_item("importer_main_window")) as w:
             dpg.add_resize_handler(parent=w, callback=self.res_item_cb)
 
@@ -272,12 +271,16 @@ def select_comp(data):
     print('select_comp({d})'.format(d=data))
 
 importer = None
-def show_importer(fname, cb, w, h):
+def show_importer_worker(fname, w, h):
+    # TODO: No need for cb anymore if we send ui event instead across threads
     global importer
     importer = MidiImporter()
-    importer.start_importer(fname, cb)
+    importer.start_importer(fname)
 
     refresh_importer(w, h)
+
+def show_importer(fname, w, h):
+    thread_pool.push_async_task(lambda: show_importer_worker(fname, w, h))
 
 def refresh_importer(w, h):
     MidiImporter.vp_width = w - 50

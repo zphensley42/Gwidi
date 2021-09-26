@@ -2,6 +2,7 @@ import dearpygui.dearpygui as dpg
 import gwidi_data
 import threading, time
 import event_queue
+import thread_pool
 
 
 from sys import platform
@@ -34,23 +35,31 @@ class PlayStats:
     def cb_input_changed(self, sender, data):
         dpg.set_item_user_data(sender, data)
 
-    def cb_close(self, do_save):
-        if do_save:
-            self.bpm = dpg.get_item_user_data(item='bpm_cnt')
-            gwidi_data.MeasureInfo.update_measure_count(dpg.get_item_user_data(item='measure_cnt'))
+    def save_worker(self):
+        print('stats save_worker 1')
+        self.bpm = dpg.get_item_user_data(item='bpm_cnt')
+        print('stats save_worker 2')
+        gwidi_data.MeasureInfo.update_measure_count(dpg.get_item_user_data(item='measure_cnt'))
+        print('stats save_worker 3')
+        gwidi_data.MeasureInfo.selected_octaves[0] = dpg.get_item_user_data(item='octave_0_sel')
+        print('stats save_worker 3.1')
+        gwidi_data.MeasureInfo.selected_octaves[1] = dpg.get_item_user_data(item='octave_1_sel')
+        print('stats save_worker 3.2')
+        gwidi_data.MeasureInfo.selected_octaves[2] = dpg.get_item_user_data(item='octave_2_sel')
+        print('stats save_worker 3.3')
+        print('stats save_worker 4')
 
-            gwidi_data.MeasureInfo.selected_octaves[0] = dpg.get_item_user_data(item='octave_0_sel')
-            gwidi_data.MeasureInfo.selected_octaves[1] = dpg.get_item_user_data(item='octave_1_sel')
-            gwidi_data.MeasureInfo.selected_octaves[2] = dpg.get_item_user_data(item='octave_2_sel')
-
+        # TODO: Put this on ui event queue?
         dpg.delete_item('song_stats')
 
-        if self.cb_closed is not None:
-            self.cb_closed(do_save)
+        print('pushing message')
+        event_queue.g_event_queue.push_msg({'what': 6, 'desc': 'refresh_content', 'params': {}})
 
-    def show_stats_popup(self, cb_closed):
-        self.cb_closed = cb_closed
+    def cb_close(self, do_save):
+        if do_save:
+            thread_pool.push_async_task(self.save_worker)
 
+    def show_stats_popup(self):
         # TODO: Don't allow mouse delegation while popped up
         w_space = dpg.get_viewport_width() - 300
         with dpg.window(pos=[w_space / 2, 0], width=300, height=250, id='song_stats', popup=True, modal=True, no_close=True, no_title_bar=True, no_move=True, no_resize=True):

@@ -10,6 +10,7 @@ import gwidi_data
 import play_manager
 import macro_manager
 import event_queue
+import traceback
 
 # TODO: Move scrub bar to different panel and synchronize the scrolling instead?
 # TODO: Add octave selection to stats
@@ -68,11 +69,18 @@ Constants.recalc_sizes(1000, 800)  # initial call
 
 
 class Controls:
-    def stats_saved(self, do_refresh):
-        global g_window
-        if do_refresh:
-            g_window.refresh()
-        MouseControls.enable()
+
+    class UiEventHandler(event_queue.Handler):
+        def handles(self, m_what):
+            return m_what == 6
+
+        def handle(self, msg):
+            global g_window
+            print('Controls handling ui event')
+
+    def __init__(self):
+        self.ui_event_handler = Controls.UiEventHandler()
+        event_queue.g_event_queue.subscribe(self.ui_event_handler)
 
     def play_finished(self):
         MouseControls.enable()
@@ -123,7 +131,7 @@ class Controls:
     def cb_stats(self):
         print('cb_stats')
         MouseControls.disable()
-        play_manager.g_play_stats.show_stats_popup(self.stats_saved)
+        play_manager.g_play_stats.show_stats_popup()
 
     def cb_bpm_changed(self):
         print('cb_bpm_changed')
@@ -287,6 +295,7 @@ class Content:
     def content_width(self):
         return (len(gwidi_data.g_measure_info.notes[0].slots) * Constants.slot_width) + (gwidi_data.MeasureInfo.measure_count * Constants.measure_spacing) + 30
 
+    # TODO: Pre-generate the item positions to cut down on the work requires when drawing each rectangle in this render loop
     def draw_slots(self):
         with dpg.drawlist(parent='content_panel', id='content_dl', height=self.content_height() + 50, width=self.content_width() + 10):
             for iter_n, n in enumerate(gwidi_data.g_measure_info.notes):
@@ -366,6 +375,8 @@ class Content:
         self.resize()
 
     def refresh(self):
+        # traceback.print_stack()
+        print('content refresh')
         dpg.delete_item('content_dl')
         self.measure_boundaries = {}
         self.octave_boundaries = {}
@@ -575,17 +586,33 @@ class ScrubBar:
         dpg.configure_item('scrub_panel', height=Constants.scrub_height, width=Constants.scrub_width)
 
 class MainWindow:
+
+    class UiEventHandler(event_queue.Handler):
+        def handles(self, m_what):
+            return m_what == 5 or m_what == 6
+
+        def handle(self, msg):
+            if msg['what'] == 5:
+                g_window.content.perform_import(msg['params']['data'])
+            elif msg['what'] == 6:
+                # refresh_content
+                g_window.refresh()
+                MouseControls.enable()
+
     def __init__(self):
         self.controls = Controls()
         self.content = Content()
         self.scrub_bar = ScrubBar()
+
+        self.ui_event_handler = MainWindow.UiEventHandler()
+        event_queue.g_event_queue.subscribe(self.ui_event_handler)
 
         ifd = dpg.add_file_dialog(modal=True, show=False, callback=self.import_selected, id="import_sel", default_path="./../assets/midi_test/")
         dpg.add_file_extension(extension=".mid", parent=ifd)
 
     def import_selected(self, sender, data):
         print('import_selected: {d}'.format(d=data))
-        midi_importer.show_importer(data['file_path_name'], self.content.perform_import, Constants.vp_width, Constants.vp_height)
+        midi_importer.show_importer(data['file_path_name'], Constants.vp_width, Constants.vp_height)
 
     def close(self):
         play_manager.g_play_manager.stop()
