@@ -8,6 +8,7 @@ import threading, queue
 # {'what': 4, 'desc': 'update_notes_finished_playing', 'params': {'slots': [index1, index2, index3]}}
 # {'what': 5, 'desc': 'import_data_ready', 'params': {'data': data}}
 # {'what': 6, 'desc': 'refresh_content', 'params': {}}
+# {'what': 7, 'desc': 'update_notes', 'params': {'notes': notes}}
 
 class Handler:
     def handles(self, m_what):
@@ -39,7 +40,7 @@ class UiEventQueue(threading.Thread):
         while self.alive:
             msg = self.msg_queue.get()
             # to allow us to kill (push a None msg when we kill)
-            print('new ui msg: {m}'.format(m=msg))
+            # print('new ui msg: {m}'.format(m=msg))
             if msg is None:
                 self.msg_queue.task_done()
                 continue

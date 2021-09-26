@@ -36,28 +36,24 @@ class PlayStats:
         dpg.set_item_user_data(sender, data)
 
     def save_worker(self):
-        print('stats save_worker 1')
+        print('save worker 1')
         self.bpm = dpg.get_item_user_data(item='bpm_cnt')
-        print('stats save_worker 2')
-        gwidi_data.MeasureInfo.update_measure_count(dpg.get_item_user_data(item='measure_cnt'))
-        print('stats save_worker 3')
         gwidi_data.MeasureInfo.selected_octaves[0] = dpg.get_item_user_data(item='octave_0_sel')
-        print('stats save_worker 3.1')
         gwidi_data.MeasureInfo.selected_octaves[1] = dpg.get_item_user_data(item='octave_1_sel')
-        print('stats save_worker 3.2')
         gwidi_data.MeasureInfo.selected_octaves[2] = dpg.get_item_user_data(item='octave_2_sel')
-        print('stats save_worker 3.3')
-        print('stats save_worker 4')
+
+        print('save worker 2')
+        gwidi_data.MeasureInfo.update_measure_count(dpg.get_item_user_data(item='measure_cnt'))
 
         # TODO: Put this on ui event queue?
+        print('save worker 3')
         dpg.delete_item('song_stats')
-
-        print('pushing message')
-        event_queue.g_event_queue.push_msg({'what': 6, 'desc': 'refresh_content', 'params': {}})
 
     def cb_close(self, do_save):
         if do_save:
             thread_pool.push_async_task(self.save_worker)
+        else:
+            dpg.delete_item('song_stats')
 
     def show_stats_popup(self):
         # TODO: Don't allow mouse delegation while popped up

@@ -1,6 +1,7 @@
 import concurrent.futures
 import threading
 import multiprocessing
+import traceback
 
 # TODO: concurrent futures allows us to exec a list of tasks, but not a rolling window of them as a 'task queue' would imply
 
@@ -24,6 +25,7 @@ def print_task_result(future):
     try:
         data = future.result()
     except Exception as exc:
+        traceback.print_exc()
         print('generated an exception: %s' % (exc))
     else:
         print('response data is {d}'.format(d=data))

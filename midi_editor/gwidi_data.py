@@ -1,4 +1,5 @@
 import dearpygui.dearpygui as dpg
+import event_queue
 
 class MeasureInfo:
     slots_per_measure = 16
@@ -19,6 +20,7 @@ class MeasureInfo:
                 n.remove_slots(abs(diff) * MeasureInfo.slots_per_measure)
 
         MeasureInfo.measure_count = cnt
+        event_queue.g_event_queue.push_msg({'what': 7, 'desc': 'update_notes', 'params': {'notes': MeasureInfo.notes}})
 
 
 
@@ -82,6 +84,9 @@ class MeasureInfo:
                     continue
                 MeasureInfo.notes[note_index].slots[slot['slot_index'] + i].is_held = True
 
+        # print('import finished: {d}'.format(d=MeasureInfo.notes))
+        event_queue.g_event_queue.push_msg({'what': 7, 'desc': 'update_notes', 'params': {'notes': MeasureInfo.notes}})
+
 
 # Each note can be used to fill a horizontal list of slots that are marked as activated / held etc
 # Each note is drawn per its octave / value
@@ -101,6 +106,9 @@ class Note:
 
     def remove_slots(self, num):
         self.slots = self.slots[0:(-1 * num)]
+
+    def __repr__(self):
+        return 'Note(note: {n}, octave: {o}, slots: {s})'.format(n=self.note, o=self.octave, s=self.slots)
 
 
 class Slot:
@@ -184,6 +192,9 @@ class Slot:
             return [0, 0, 255, 255]
         else:
             return [0, 0, 0, 255]
+
+    def __repr__(self):
+        return 'Slot(note: {n}, octave: {o}, activated: {a})'.format(n=self.note, o=self.octave, a=self.activated)
 
 
 g_measure_info = None
