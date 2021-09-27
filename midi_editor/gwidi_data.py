@@ -84,7 +84,7 @@ class MeasureInfo:
                     continue
                 MeasureInfo.notes[note_index].slots[slot['slot_index'] + i].is_held = True
 
-        # print('import finished: {d}'.format(d=MeasureInfo.notes))
+        print('import finished: {d}'.format(d=MeasureInfo.notes))
         event_queue.g_event_queue.push_msg({'what': 7, 'desc': 'update_notes', 'params': {'notes': MeasureInfo.notes}})
 
 

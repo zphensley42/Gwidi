@@ -23,6 +23,7 @@ import traceback
 # TODO: Check if 'hiding' drawn rectangles that are not 'visible' (not scrolled into view) helps performance with high measure counts
 # TODO: Move more UI event stuff out of play tick (slot.play / slot.play_finished / etc)
 
+# TODO: Make separate module for drawing the slots so that it can be verified as not crashing with dpg refresh
 
 
 # Holds the 'view' data copied over from other sources, suhc as gwidi_data
@@ -674,6 +675,7 @@ class MainWindow:
     def refresh(self):
         self.content.refresh()
         self.scrub_bar.refresh()
+        MouseControls.enable()
 
     def resize(self):
         self.controls.resize()
