@@ -70,7 +70,7 @@ class MeasuresDisplay:
             # finally convert to the total indices instead of per measure/octave
             slot_index = (found['measure'] * self.owner.slots_per_measure) + w_index
             note_index = (found['octave'] * self.owner.notes_per_octave) + h_index
-            print('note_index: {n}, slot_index: {s}'.format(s=slot_index, n=note_index))
+            # print('note_index: {n}, slot_index: {s}'.format(s=slot_index, n=note_index))
             return [note_index, slot_index]
 
     note_mapping = [
@@ -115,9 +115,12 @@ class MeasuresDisplay:
         self.measure_boundaries = []
         self.mouse_stats = MeasuresDisplay.MouseStats(self)
 
+        # hold slots we are triggering until we mouse up, cycle / finalize / clear at that point
+        self.triggered_slots = []
+
         cols = self.slots_per_measure * self.num_measures
         rows = self.notes_per_octave * self.num_octaves
-        self.slots = [[0] * cols for i in range(rows)]
+        self.slots = [['e'] * cols for i in range(rows)]
 
         self.ui_event_handler = MeasuresDisplay.UiEventHandler(self)
         event_queue.g_event_queue.subscribe(self.ui_event_handler)
@@ -126,7 +129,7 @@ class MeasuresDisplay:
         # todo: fill in with real logic
         cols = self.slots_per_measure * self.num_measures
         rows = self.notes_per_octave * self.num_octaves
-        self.slots = [[1] * cols for i in range(rows)]
+        self.slots = [['e'] * cols for i in range(rows)]
 
         event_queue.g_event_queue.push_msg({'what': 100, 'desc': 'data_assign_complete', 'params': {}})
 
@@ -150,24 +153,54 @@ class MeasuresDisplay:
 
             # toggle the index (for now instead of changing between sets of values)
             val = self.slots[indices[0]][indices[1]]
-            self.slots[indices[0]][indices[1]] = not val
 
-            # we need to configure this item now (this works but we shouldn't constantly toggle as we move -- need to do only once per down)
-            fill = [0, 255, 0, 255] if val == 1 else [255, 255, 255, 255]
-            dpg.configure_item('r[{row}][{col}]'.format(row=indices[0], col=indices[1]), fill=fill)
+            # print('val: {v}'.format(v=val))
+            if 't' not in val:
+
+                # primary
+                if self.mouse_stats.active_button == 0:
+                    if val == 'e':
+                        val = 'ta'
+                    elif val == 'a':
+                        val = 'th'
+                    elif val == 'h':
+                        val = 'ta'
+                elif self.mouse_stats.active_button == 1:
+                    val = 'te'
+                elif self.mouse_stats.active_button == 2:
+                    val = 'th'
+
+                self.slots[indices[0]][indices[1]] = val  #'t' means triggered, we clear this when we 'finish' the action
+
+                self.triggered_slots.append({'note': indices[0], 'slot': indices[1]})
+                dpg.configure_item('r[{row}][{col}]'.format(row=indices[0], col=indices[1]), fill=self.slot_to_fill(val))
 
 
     def panel_mouse_down(self, sender, data):
         if self.mouse_stats.trigger():
-            print('panel_mouse_down: {d}'.format(d=data))
-            print('info: {i}'.format(i=dpg.get_item_info('md_panel')))
-            print('item pos: {p}'.format(p=dpg.get_item_pos('md_panel')))
+            # print('panel_mouse_down: {d}'.format(d=data))
+            # print('info: {i}'.format(i=dpg.get_item_info('md_panel')))
+            # print('item pos: {p}'.format(p=dpg.get_item_pos('md_panel')))
 
             self.panel_mouse_moved(sender, self.mouse_stats.mouse_pos)
 
     def panel_mouse_up(self, sender, data):
-        print('panel_mouse_up: {d}'.format(d=data))
+        # print('panel_mouse_up: {d}'.format(d=data))
         self.mouse_stats.clear()
+
+        for i in self.triggered_slots:
+            val = self.slots[i['note']][i['slot']]
+            val = val.replace('t', '')
+            self.slots[i['note']][i['slot']] = val
+        self.triggered_slots.clear()
+
+    def slot_to_fill(self, val):
+        if val == 'e' or val == 'te':
+            return [255, 255, 255, 255]
+        elif val == 'a' or val == 'ta':
+            return [0, 255, 0, 255]
+        elif val == 'h' or val == 'th':
+            return [0, 255, 255, 255]
 
     def draw(self, parent):
         cols = self.slots_per_measure * self.num_measures
@@ -224,11 +257,10 @@ class MeasuresDisplay:
 
                 # new slot in row
                 x = (j_iter * MeasuresDisplay.slot_width) + (measure_index * MeasuresDisplay.measure_spacing)
-                fill = [0, 255, 0, 255] if j == 1 else [255, 255, 255, 255]
                 dpg.draw_rectangle(id='r[{row}][{col}]'.format(row=i_iter, col=j_iter), parent='md_dl', pmin=[x, y],
                                    pmax=[x + MeasuresDisplay.slot_width,
                                          y + MeasuresDisplay.slot_height],
-                                   fill=fill,
+                                   fill=self.slot_to_fill(j),
                                    thickness=4,
                                    color=[0, 0, 0, 255])
                 # dpg.draw_text(parent='md_dl', pos=[x + 4, y + 4], text='r[{row}][{col}]'.format(row=i_iter, col=j_iter), color=[255, 0 ,0, 255])
@@ -245,6 +277,9 @@ class MeasuresDisplay:
             dpg.draw_text(parent='md_dl', pos=[m['x1'] + ((m['x2'] - m['x1']) / 2) - 25, m['y2'] + 5], size=11, text='Octave {o} Measure {m}'.format(o=m['octave'], m=m['measure']))
 
 
+# TODO: Add buttons to send ui updates for testing
+# TODO: i.e. 'playout' events, 'refresh / update data' events
+# TODO: Add scrubber
 
 if __name__ == '__main__':
     dpg.add_window(id="md_test", width=1000, height=800)
