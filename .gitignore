@@ -1,4 +1,9 @@
 test.out
 .idea/
 __pycache__/
-
+build/
+dist/
+editor_v2.spec
+editor_v3.spec
+gwidi_sfml/cmake-build-debug/
+gwidi_sfml/.idea
