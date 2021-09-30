@@ -10,6 +10,7 @@ import gwidi_data
 import play_manager
 import macro_manager
 import event_queue
+import traceback
 
 # TODO: Move scrub bar to different panel and synchronize the scrolling instead?
 # TODO: Add octave selection to stats
@@ -21,6 +22,38 @@ import event_queue
 # - options: highest # of notes, highest octave, lowest octave, specified default
 # TODO: Check if 'hiding' drawn rectangles that are not 'visible' (not scrolled into view) helps performance with high measure counts
 # TODO: Move more UI event stuff out of play tick (slot.play / slot.play_finished / etc)
+
+# TODO: Make separate module for drawing the slots so that it can be verified as not crashing with dpg refresh
+
+
+# Holds the 'view' data copied over from other sources, suhc as gwidi_data
+class UiData:
+
+    class UiEventHandler(event_queue.Handler):
+        def __init__(self, parent):
+            self.parent = parent
+
+        def handles(self, m_what):
+            return m_what == 7
+
+        def handle(self, msg):
+            print('UiData handle msg')
+            if msg['what'] == 7:
+                # clear the old data first
+                g_window.clear()
+                self.parent.notes = msg['params']['notes'].copy()
+                g_window.refresh()
+
+    def __init__(self):
+        self.notes = gwidi_data.g_measure_info.notes.copy()
+
+        self.ui_event_handler = UiData.UiEventHandler(self)
+        event_queue.g_event_queue.subscribe(self.ui_event_handler)
+
+    def clear(self):
+        g_window.clear()
+        self.notes = gwidi_data.g_measure_info.notes.copy()
+        g_window.refresh()
 
 
 
@@ -68,11 +101,18 @@ Constants.recalc_sizes(1000, 800)  # initial call
 
 
 class Controls:
-    def stats_saved(self, do_refresh):
-        global g_window
-        if do_refresh:
-            g_window.refresh()
-        MouseControls.enable()
+
+    class UiEventHandler(event_queue.Handler):
+        def handles(self, m_what):
+            return m_what == 6
+
+        def handle(self, msg):
+            global g_window
+            print('Controls handling ui event')
+
+    def __init__(self):
+        self.ui_event_handler = Controls.UiEventHandler()
+        event_queue.g_event_queue.subscribe(self.ui_event_handler)
 
     def play_finished(self):
         MouseControls.enable()
@@ -95,8 +135,8 @@ class Controls:
     def cb_clear(self):
         print('clear')
         play_manager.g_play_manager.stop()
-        gwidi_data.g_measure_info.clear()
-        g_window.refresh()
+        g_uidata.clear()
+        # g_window.refresh()  # don't manually refresh, allow the event to uodate our data
 
     def cb_load(self):
         print('cb_load')
@@ -123,7 +163,7 @@ class Controls:
     def cb_stats(self):
         print('cb_stats')
         MouseControls.disable()
-        play_manager.g_play_stats.show_stats_popup(self.stats_saved)
+        play_manager.g_play_stats.show_stats_popup()
 
     def cb_bpm_changed(self):
         print('cb_bpm_changed')
@@ -182,11 +222,30 @@ class Controls:
         print('controls resize')
         dpg.configure_item(item='controls_panel', width=Constants.controls_width, height=Constants.controls_height)
 
+# TODO: Make a ui class for slots and save their positions and sizes so that they can be used in the render callback
+# to hide when not in range of the scrolled viewport display
 class Content:
+
+    class ContentUiEventHandler(event_queue.Handler):
+        def handles(self, m_what):
+            return m_what == 3 or m_what == 4
+
+        def handle(self, msg):
+            if msg['what'] == 3:
+                for s in msg['params']['slots']:
+                    s.play()
+            elif msg['what'] == 4:
+                for s in msg['params']['slots']:
+                    s.finished_playing()
+
     def __init__(self):
         self.measure_boundaries = {}
         self.octave_boundaries = {}
         self.scrub_bar_ypos = None
+        self.drawn_items = []
+
+        self.ui_event_handler = Content.ContentUiEventHandler()
+        event_queue.g_event_queue.subscribe(self.ui_event_handler)
 
     # TODO: This should change for different mode strategies of picking notes to match sharps / flats
     @staticmethod
@@ -211,13 +270,6 @@ class Content:
 
         play_manager.g_play_stats.bpm = data['bpm']
 
-        # start filling data per the notes
-        measure_index = 0
-        slot_index = 0
-
-        # notes are in order, first filter by channel
-        sel_channel = data['selected_channel']
-
         total_measure_count = 0
 
         slots_to_assign = []
@@ -231,8 +283,6 @@ class Content:
                 note_position = slot['position']
                 note_length = slot['length']
                 note_type = slot['note_type']
-
-                gwidi_data.g_measure_info.note_vals
 
                 print('slot info -- note_key: {nk}, note_octave: {no}, note_postion: {np}, note_length: {nl}, note_type: {nt}'.format(nk=note_key, no=note_octave, np=note_position, nl=note_length, nt=note_type))
 
@@ -258,20 +308,28 @@ class Content:
         total_measure_count = total_measure_count + 1   # Always at least one, need to offset 0 index
         print('New measure total: {t}'.format(t=total_measure_count))
         gwidi_data.g_measure_info.import_data(total_measure_count, slots_to_assign)
-        g_window.refresh()
-
         MouseControls.enable()
 
 
     def content_height(self):
-        return len(gwidi_data.g_measure_info.notes) * Constants.slot_height + (Constants.octave_spacing * len(gwidi_data.MeasureInfo.octaves)) + 15
+        return len(g_uidata.notes) * Constants.slot_height + (Constants.octave_spacing * len(gwidi_data.MeasureInfo.octaves)) + 15
 
     def content_width(self):
-        return (len(gwidi_data.g_measure_info.notes[0].slots) * Constants.slot_width) + (gwidi_data.MeasureInfo.measure_count * Constants.measure_spacing) + 30
+        return (len(g_uidata.notes[0].slots) * Constants.slot_width) + (gwidi_data.MeasureInfo.measure_count * Constants.measure_spacing) + 30
 
+    def clear(self):
+        print('clearing drawn items')
+        for i in self.drawn_items:
+            if dpg.does_item_exist(i):
+                dpg.delete_item(i)
+        self.drawn_items.clear()
+        print('finished clearing drawn items')
+
+    # TODO: Pre-generate the item positions to cut down on the work requires when drawing each rectangle in this render loop
     def draw_slots(self):
-        with dpg.drawlist(parent='content_panel', id='content_dl', height=self.content_height() + 50, width=self.content_width() + 10):
-            for iter_n, n in enumerate(gwidi_data.g_measure_info.notes):
+        with dpg.drawlist(parent='content_panel', id='content_dl', height=self.content_height() + 50, width=self.content_width() + 10) as dl:
+            self.drawn_items.append(dl)
+            for iter_n, n in enumerate(g_uidata.notes):
                 octave_index = int(iter_n / 8)
                 y_off = iter_n * Constants.slot_height + (octave_index * Constants.octave_spacing)
 
@@ -296,14 +354,18 @@ class Content:
                                               color=[0, 0, 0, 255])
                     s.drawn(rect, rect_text)
 
+                    self.drawn_items.append(rect)
+                    self.drawn_items.append(rect_text)
+
                     if iter_s % gwidi_data.MeasureInfo.slots_per_measure == 0:
                         self.measure_boundaries[measure_index] = x_off
 
                     if iter_s % 4 == 0 and iter_s != 0 and iter_s % gwidi_data.MeasureInfo.slots_per_measure != 0:
                         line_pad = padding_offset * 1.5
-                        dpg.draw_line(p1=[x_off, y_off + line_pad],
+                        l = dpg.draw_line(p1=[x_off, y_off + line_pad],
                                       p2=[x_off, y_off + Constants.slot_height - line_pad], thickness=2,
                                       color=[255, 0, 0, 255])
+                        self.drawn_items.append(l)
 
                 if iter_n % 8 == 0:
                     self.octave_boundaries[octave_index] = y_off
@@ -327,10 +389,13 @@ class Content:
                     octave_val = len(self.octave_boundaries)-i-1
                     if octave_val in gwidi_data.g_measure_info.selected_octaves:
                         fill = [34, 115, 89, 255]
-                    dpg.draw_rectangle(pmin=[m_start, o_end],
+                    r = dpg.draw_rectangle(pmin=[m_start, o_end],
                                        pmax=[m_end, o_end + Constants.octave_spacing], fill=fill)
-                    dpg.draw_text(text='Octave #{o}, Measure #{n}'.format(o=octave_val, n=j+1),
+                    rt = dpg.draw_text(text='Octave #{o}, Measure #{n}'.format(o=octave_val, n=j+1),
                                   pos=[m_start +(measure_width / 2) - 25, o_end + 4], size=12)
+
+                    self.drawn_items.append(r)
+                    self.drawn_items.append(rt)
 
     def draw(self, parent):
         # dpg.show_style_editor()
@@ -348,14 +413,14 @@ class Content:
         self.resize()
 
     def refresh(self):
-        dpg.delete_item('content_dl')
+        # traceback.print_stack()
+        print('content refresh')
         self.measure_boundaries = {}
         self.octave_boundaries = {}
         self.draw_slots()
 
     def detect_slot_clicked(self, p):
         # use math to find the position instead of search/index for efficiency
-
         pos_offset = [Constants.note_labels_width, Constants.controls_height + Constants.main_element_spacing]
         translated_pos = [
             p[0] + dpg.get_x_scroll('content_panel') - pos_offset[0],
@@ -415,9 +480,9 @@ class Content:
         total_note_index = detected_slot['note'] + (detected_slot['octave'] * len(gwidi_data.MeasureInfo.note_vals))
         total_slot_index = detected_slot['slot'] + (detected_slot['measure'] * gwidi_data.MeasureInfo.slots_per_measure)
 
-        if total_note_index >= len(gwidi_data.g_measure_info.notes):
+        if total_note_index >= len(g_uidata.notes):
             return None
-        note = gwidi_data.g_measure_info.notes[total_note_index]
+        note = g_uidata.notes[total_note_index]
 
         if total_slot_index >= len(note.slots):
             return None
@@ -464,12 +529,12 @@ class ScrubBar:
 
 
     def content_width(self):
-        return (len(gwidi_data.g_measure_info.notes[0].slots) * Constants.slot_width) + (gwidi_data.MeasureInfo.measure_count - 1 * Constants.measure_spacing) + 30
+        return (len(g_uidata.notes[0].slots) * Constants.slot_width) + (gwidi_data.MeasureInfo.measure_count - 1 * Constants.measure_spacing) + 30
 
     def draw_slots(self):
         with dpg.drawlist(parent='scrub_panel', id='scrub_dl', width=self.content_width() + 300, height=Constants.slot_height):
             dpg.draw_rectangle(pmin=[0, 0], pmax=[Constants.content_width, Constants.slot_height], color=[50, 50, 50, 255])
-            for s_iter, s in enumerate(gwidi_data.g_measure_info.notes[0].slots):
+            for s_iter, s in enumerate(g_uidata.notes[0].slots):
                 measure_index = int(s_iter / gwidi_data.MeasureInfo.slots_per_measure)
 
                 # Draw the scrub bar
@@ -557,17 +622,33 @@ class ScrubBar:
         dpg.configure_item('scrub_panel', height=Constants.scrub_height, width=Constants.scrub_width)
 
 class MainWindow:
+
+    class UiEventHandler(event_queue.Handler):
+        def handles(self, m_what):
+            return m_what == 5 or m_what == 6
+
+        def handle(self, msg):
+            if msg['what'] == 5:
+                g_window.content.perform_import(msg['params']['data'])
+            elif msg['what'] == 6:
+                # refresh_content
+                g_window.refresh()  # possibly change this b/c we want the ui data update to refresh us instead
+                MouseControls.enable()
+
     def __init__(self):
         self.controls = Controls()
         self.content = Content()
         self.scrub_bar = ScrubBar()
+
+        self.ui_event_handler = MainWindow.UiEventHandler()
+        event_queue.g_event_queue.subscribe(self.ui_event_handler)
 
         ifd = dpg.add_file_dialog(modal=True, show=False, callback=self.import_selected, id="import_sel", default_path="./../assets/midi_test/")
         dpg.add_file_extension(extension=".mid", parent=ifd)
 
     def import_selected(self, sender, data):
         print('import_selected: {d}'.format(d=data))
-        midi_importer.show_importer(data['file_path_name'], self.content.perform_import, Constants.vp_width, Constants.vp_height)
+        midi_importer.show_importer(data['file_path_name'], Constants.vp_width, Constants.vp_height)
 
     def close(self):
         play_manager.g_play_manager.stop()
@@ -587,9 +668,14 @@ class MainWindow:
         if sx <= msx:
             dpg.set_x_scroll('scrub_panel', sx)
 
+    def clear(self):
+        self.content.clear()
+
+
     def refresh(self):
         self.content.refresh()
         self.scrub_bar.refresh()
+        MouseControls.enable()
 
     def resize(self):
         self.controls.resize()
@@ -662,7 +748,7 @@ class MouseControls:
 
         self.triggered = False
         # print('handle_mouse_up: {d}'.format(d=self.pos))
-        for n in gwidi_data.g_measure_info.notes:
+        for n in g_uidata.notes:
             for s in n.slots:
                 s.change_finished()
 
@@ -672,11 +758,14 @@ class MouseControls:
         dpg.add_mouse_release_handler(callback=self.handle_mouse_up)
 
 g_window = None
+g_uidata = None
 g_mouse_controls = None
 def start_editor():
     global g_window
     global g_mouse_controls
+    global g_uidata
     if g_window is None:
+        g_uidata = UiData()
         g_window = MainWindow()
         g_mouse_controls = MouseControls(lambda pos: g_window.delegate_mouse_detect(pos))
 

@@ -1,7 +1,10 @@
 import json
+import sys
+
 import keyboard
 from dearpygui import dearpygui as dpg
 import play_manager
+from sys import platform
 
 class Utility:
     file_cb = None
@@ -79,6 +82,10 @@ class Utility:
 
     @staticmethod
     def assign_macro(m):
+        # do nothing for osx currently (requires admin always)
+        if sys.platform == 'darwin':
+            return
+
         key_string = ''
         for iter, k in enumerate(m['val']):
             if iter > 0:
