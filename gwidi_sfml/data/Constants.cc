@@ -21,6 +21,7 @@ int UiConstants::slot_width = 35;
 int UiConstants::slot_height = 20;
 int UiConstants::octave_spacing = 10;
 int UiConstants::measure_spacing = 10;
+int UiConstants::measure_label_height = 20;
 
 int UiConstants::measure_width = Constants::slots_per_measure * UiConstants::slot_width;
 int UiConstants::measure_height = Constants::notes.size() * UiConstants::slot_height;

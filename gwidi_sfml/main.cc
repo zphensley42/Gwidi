@@ -5,6 +5,7 @@
 
 #include "data/DataManager.h"
 #include "gui/LayoutManager.h"
+#include "events/ThreadPool.h"
 #include "data/MeasureGrid.h"
 
 // TODO: For the text on the slots, draw them to a render texture, save that out, use it as the texture of the sprite that we modify with clicks
@@ -75,5 +76,8 @@ int main() {
         // Update the window
         window.display();
     }
+
+    ThreadPool::instance().shutdown();
+
     return EXIT_SUCCESS;
 }

@@ -25,6 +25,8 @@ private:
     std::vector<Coord2D> m_triggeredSlots;
     std::mutex* m_triggeredSlotsMutex{nullptr};
 
+    std::string measureLabelText();
+
 public:
     Measure();
     Measure(Identifier id);

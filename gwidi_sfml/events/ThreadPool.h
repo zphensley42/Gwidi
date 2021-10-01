@@ -14,7 +14,7 @@ public:
     ThreadTask(std::function<void()> fn);
     void exec();
 private:
-    std::function<void()> m_fn;
+    std::function<void()> m_fn{nullptr};
 };
 
 class ThreadInstance {
@@ -44,6 +44,7 @@ public:
     ~ThreadPool();
 
     void schedule(std::function<void()> task);
+    void shutdown();
 
 private:
     std::vector<ThreadInstance*> m_threads;

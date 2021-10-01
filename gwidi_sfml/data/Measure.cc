@@ -31,6 +31,15 @@ Measure::Measure(Identifier id) : UiView(id) {
     m_bounds.top_right = {m_notes.front().bounds().top_right.x, m_notes.front().bounds().top_right.y};
     m_bounds.bottom_left = {m_notes.back().bounds().bottom_left.x, m_notes.back().bounds().bottom_left.y};
     m_bounds.bottom_right = {m_notes.back().bounds().bottom_right.x, m_notes.back().bounds().bottom_right.y};
+
+    m_bounds.bottom_left.y += UiConstants::measure_label_height;
+    m_bounds.bottom_right.y += UiConstants::measure_label_height;
+}
+
+std::string Measure::measureLabelText() {
+    std::stringstream ss;
+    ss << "Octave " << Constants::octaves()[id().octave_index] << "  Measure " << (id().measure_index + 1);
+    return ss.str();
 }
 
 void Measure::build(sf::Vector2f offset) {
@@ -55,6 +64,22 @@ void Measure::build(sf::Vector2f offset) {
     m_background_renderTexture = new sf::RenderTexture();
     m_background_renderTexture->create(size.x, size.y);
     m_background_renderTexture->draw(m_background_sprite);
+
+    sf::RectangleShape labelRect({static_cast<float>(size.x), static_cast<float>(UiConstants::measure_label_height)});
+    labelRect.setPosition({0.f, static_cast<float>( size.y - UiConstants::measure_label_height)});
+    labelRect.setFillColor(sf::Color(170, 4, 4, 255));
+
+    sf::Text labelText(measureLabelText(), LayoutManager::instance().mainFont(), 13);
+    auto textBounds = labelText.getLocalBounds();
+    labelText.setFillColor(sf::Color::White);
+    labelText.setOrigin(textBounds.left + (textBounds.width / 2.f), textBounds.top + (textBounds.height / 2.f));
+    int text_posx = labelRect.getPosition().x + labelRect.getSize().x / 2;
+    int text_posy = labelRect.getPosition().y + labelRect.getSize().y / 2;
+    // Use ints here so that we draw on pixel-perfect positions (otherwise font can be blurry)
+    labelText.setPosition({static_cast<float>(text_posx), static_cast<float>(text_posy)});
+
+    m_background_renderTexture->draw(labelRect);
+    m_background_renderTexture->draw(labelText);
 
     // This adds text
     for(auto &n : m_notes) {
@@ -98,6 +123,11 @@ Slot* Measure::slotIndexForMouse(int x, int y) {
         float offset_y = y - g_bounds.top;
         int slot_index = static_cast<int>((offset_x / float(UiConstants::measure_width)) * float(Constants::slots_per_measure));
         int note_index = static_cast<int>((offset_y / float(UiConstants::measure_height)) * float(Constants::notes.size()));
+
+        std::cout << "slot index found for mouse: " << slot_index << ", " << note_index << std::endl;
+        if(note_index >= m_notes.size() || slot_index >= m_notes[note_index].slots().size()) {
+            return nullptr;
+        }
 
         std::cout << "slot index found for mouse: " << slot_index << ", " << note_index << std::endl;
         {

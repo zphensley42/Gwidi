@@ -27,9 +27,6 @@ MeasureGrid::MeasureGrid(bool splitMeasures) {
         auto front_bounds = m_measures.front().globalBounds();
         auto back_bounds = m_measures.back().globalBounds();
 
-
-        // TODO: This bounds stuff is getting the wrong values (wrong measures?)
-        // TODO: Bounds should be used to determine the max/min scroll values
         // Each measure needs to be positioned according to their bounds + their indices
         m_bounds.top_left = {static_cast<int>(front_bounds.left), static_cast<int>(front_bounds.top)};
         m_bounds.bottom_right = {static_cast<int>(back_bounds.left + back_bounds.width), static_cast<int>(back_bounds.top + back_bounds.height)};
@@ -66,7 +63,6 @@ void MeasureGrid::draw(sf::RenderWindow &window, sf::View &target, sf::Vector2f 
     // TODO: Draw measure / octave labels
 }
 
-// TODO: Yes, clamping is fine but we should also just not update the scroll_x when this happens
 void MeasureGrid::onScrolled(int x, int y) {
     m_scroll_x = x;
     m_scroll_y = y;

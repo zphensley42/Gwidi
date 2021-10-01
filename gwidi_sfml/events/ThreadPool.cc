@@ -4,8 +4,8 @@
 // TODO: Something is occasionally hanging when scheduling a lot of tasks quickly
 
 ThreadPool::ThreadPool() {
-//    int num_threads = std::thread::hardware_concurrency();
-    int num_threads = 4;
+    int num_threads = std::thread::hardware_concurrency();
+//    int num_threads = 4;
 
     for(unsigned int i = 0; i < num_threads; i++) {
         m_threads.emplace_back(new ThreadInstance{});
@@ -41,6 +41,13 @@ ThreadPool& ThreadPool::instance() {
     return tp;
 }
 
+void ThreadPool::shutdown() {
+    for(auto& t : m_threads) {
+        t->kill();
+    }
+    m_threads.clear();
+}
+
 ThreadInstance::ThreadInstance() {
 }
 
@@ -62,6 +69,9 @@ void ThreadInstance::run() {
                 if(m_tasks.empty()) {
                     std::unique_lock<std::mutex> lock(m_taskMutex);
                     m_taskCv.wait(lock);
+                }
+                if(m_tasks.empty()) {
+                    continue;
                 }
                 auto &task = m_tasks.front();
                 if(task) {
@@ -85,6 +95,8 @@ void ThreadInstance::pushTask(ThreadTask *task) {
 void ThreadInstance::kill() {
     m_alive = false;
     m_taskCv.notify_all();
+    m_thread->join();
+    m_thread = nullptr;
 }
 
 ThreadTask::ThreadTask() : ThreadTask(nullptr){}

@@ -17,6 +17,7 @@ struct UiConstants {
     static int slot_height;
     static int octave_spacing;
     static int measure_spacing;
+    static int measure_label_height;
 
     static int measure_width;
     static int measure_height;
