@@ -18,14 +18,10 @@ private:
     int m_scroll_x{0};
     int m_scroll_y{0};
 
-
-    sf::RenderWindow *m_last_window{nullptr};
     sf::Uint8* m_image_pixels;
     sf::Image m_image;
     sf::Texture m_texture;
     sf::Sprite m_sprite;
-
-    // TODO: Max scroll amounts
 
 public:
     MeasureGrid(bool splitMeasures = true);
@@ -33,9 +29,9 @@ public:
 
     void onScrolled(int x, int y) override;
     bool onLeftDown(int x, int y) override;
+    void onLeftUp(int x, int y) override;
 
-    void scroll(int x, int y);
-    void draw(sf::RenderWindow& window);
+    void draw(sf::RenderWindow &window, sf::View& target, sf::Vector2f position);
 
     explicit operator std::string() const;
 };

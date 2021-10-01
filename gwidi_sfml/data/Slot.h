@@ -23,14 +23,17 @@ public:
     Slot(Identifier id, UiConstants::Slot_ColType type);
     ~Slot() = default;
 
-    inline void updateStates(DrawState drawState, PlayState playState) {
+    inline void updateStates(DrawState drawState, PlayState playState, sf::Uint8* pixels) {
         m_drawState = drawState;
         m_playState = playState;
-        if(m_last_pixels) {
-            draw(m_last_pixels, m_lastSize);
+        if(pixels) {
+            // TODO: Determine alpha from our states
+            draw_foreground(pixels, m_lastSize);
         }
     }
-    void draw(sf::Uint8 *pixels, Coord2D &size);
+    void draw_background(sf::Uint8 *pixels, Coord2D &size);
+    void draw_foreground(sf::Uint8 *pixels, Coord2D &size);
+    void drawText(sf::RenderTexture &targetTexture, sf::Vector2f offset);
     explicit operator std::string() const;
 
     inline DrawState drawState() const { return m_drawState; }
@@ -38,12 +41,12 @@ public:
 
 private:
     UiConstants::Slot_ColType m_type;
+    sf::Text m_noteLabel;
 
     bool m_isDrawn{false};
     DrawState m_drawState{DS_NONE};
     PlayState m_playState{PS_NONE};
 
-    sf::Uint8 *m_last_pixels{nullptr};
     Coord2D m_lastSize;
 };
 

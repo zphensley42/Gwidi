@@ -1,4 +1,7 @@
+#include <iostream>
 #include "ThreadPool.h"
+
+// TODO: Something is occasionally hanging when scheduling a lot of tasks quickly
 
 ThreadPool::ThreadPool() {
 //    int num_threads = std::thread::hardware_concurrency();
@@ -55,15 +58,19 @@ void ThreadInstance::run() {
         m_alive = true;
         m_thread = new std::thread([this](){
             while(m_alive) {
+                std::cout << "ThreadInstance waiting for task, count: " << m_tasks.size() << std::endl;
                 if(m_tasks.empty()) {
                     std::unique_lock<std::mutex> lock(m_taskMutex);
                     m_taskCv.wait(lock);
                 }
                 auto &task = m_tasks.front();
                 if(task) {
+                    std::cout << "ThreadInstance task retrieved\n";
                     task->exec();
+                    std::cout << "ThreadInstance task executed\n";
                     delete task;
                     m_tasks.pop();
+                    std::cout << "ThreadInstance task poppped, new count: " << m_tasks.size() << std::endl;
                 }
             }
         });

@@ -8,7 +8,7 @@
 struct Constants {
     static int slots_per_measure;
     static int measure_count;
-    static std::vector<int> octaves;
+    static std::vector<int> &octaves();
     static std::unordered_map<const char*, int> notes;
 };
 

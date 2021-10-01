@@ -3,53 +3,30 @@
 #include <SFML/Graphics.hpp>
 #include "events/GlobalMouseEventHandler.h"
 
+#include "data/DataManager.h"
+#include "gui/LayoutManager.h"
 #include "data/MeasureGrid.h"
 
-// Don't need this yet, but might for other events that need to call window.clear
-//class GlobalHandler : public GlobalMouseEventHandler::Callback{
-//    virtual void onScrolled(int x, int y) {
-//
-//    }
-//};
+// TODO: For the text on the slots, draw them to a render texture, save that out, use it as the texture of the sprite that we modify with clicks
+// TODO: See: https://progsv.epfl.ch/www/doc-sfml/html/classsf_1_1RenderTexture.htm   https://en.sfml-dev.org/forums/index.php?topic=16086.0
 
-// TODO: Don't draw shapes, draw sf::Image with pixels so we only call 'draw' once for it vs so many others
-
-int main()
-{
+int main() {
     // Create the main window
     sf::RenderWindow window(sf::VideoMode(800, 600), "SFML window");
-    // Load a sprite to display
-    sf::Texture texture;
-    if (!texture.loadFromFile("E:/tools/repos/gwidi_sfml/assets/cute_image.jpg"))
-        return EXIT_FAILURE;
-    sf::Sprite sprite(texture);
-    // Create a graphical text to display
-    sf::Font font;
-    if (!font.loadFromFile("E:/tools/repos/gwidi_sfml/assets/arial.ttf"))
-        return EXIT_FAILURE;
-    sf::Text text("Hello SFML", font, 50);
-    // Load a music to play
+    // Load music to play
     sf::Music music;
     if (!music.openFromFile("E:/tools/repos/gwidi_sfml/assets/gw_prophecies.ogg"))
         return EXIT_FAILURE;
     // Play the music
     music.play();
 
-    // Build our data
-    std::shared_ptr<MeasureGrid> measureGrid = std::make_shared<MeasureGrid>();
-//    std::cout << (std::string)*measureGrid << std::endl;
-
-    // TODO: Offload loading the grid, it takes too long for large amounts
-
     GlobalMouseEventHandler handler;
-    handler.subscribe(measureGrid);
-
-    auto draw_grid = [&measureGrid](sf::RenderWindow &window){
-        measureGrid->draw(window);
-    };
+    DataManager dataManager;
+    LayoutManager::instance().assignWindow(window);
+    LayoutManager::instance().setup(window);
+    dataManager.load(handler);
 
     // Start the game loop
-    bool first_draw{true};
     while (window.isOpen())
     {
         // Process events
@@ -75,17 +52,25 @@ int main()
             }
             else if (event.type == sf::Event::Resized) {
                 // update the view to the new size of the window (show more instead of stretch views to the new 'size')
-                sf::FloatRect visibleArea(0, 0, event.size.width, event.size.height);
-                window.setView(sf::View(visibleArea));
+//                sf::FloatRect visibleArea(0, 0, event.size.width, event.size.height);
+                LayoutManager::instance().setup(window);
+//                window.setView(sf::View(visibleArea));
             }
         }
-        // Clear screen
-//        if(first_draw) {
-//            first_draw = false;
-            window.clear(sf::Color::Black);
-//        }
 
-        draw_grid(window);
+        // Clear screen
+        window.clear(sf::Color::Black);
+
+        // Draw some layout stuff (Z-order == order of draw)
+        // 3 panels (control bar, grid content, scrub bar)
+        // Set views / viewports so that content in the middle is restrained
+        LayoutManager::instance().draw(window);
+
+
+
+        if(dataManager.isLoaded()) {
+            dataManager.grid()->draw(window, LayoutManager::instance().contentTarget(), {0, 0});
+        }
 
         // Update the window
         window.display();

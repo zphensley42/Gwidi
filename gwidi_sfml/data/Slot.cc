@@ -1,5 +1,6 @@
 #include "Slot.h"
 #include <sstream>
+#include "../gui/LayoutManager.h"
 
 Slot::Slot() : Slot(Identifier{}, UiConstants::Slot_ColType::SLOT) {}
 
@@ -13,6 +14,19 @@ Slot::Slot(Identifier id) : UiView(id) {
     m_bounds.bottom_left = {x, y + height};
     m_bounds.top_right = {x + width, y};
     m_bounds.bottom_right = {x + width, y + height};
+
+    auto noteIt = std::find_if(Constants::notes.begin(), Constants::notes.end(),[&id](std::unordered_map<const char*, int>::value_type &entry) {
+        return entry.second == (Constants::notes.size() - id.note_index);
+    });
+    std::string noteLabel = "Note Not Found";
+    if(noteIt != Constants::notes.end()) {
+        noteLabel = noteIt->first;
+    }
+    m_noteLabel.setFont(LayoutManager::instance().mainFont());
+    m_noteLabel.setString(noteLabel);
+    m_noteLabel.setCharacterSize(10);
+    m_noteLabel.setFillColor(sf::Color::Black);
+    m_noteLabel.setPosition(m_bounds.top_left.x, m_bounds.top_left.y);
 }
 
 Slot::Slot(Identifier id, UiConstants::Slot_ColType type) : m_type{type} {
@@ -69,8 +83,40 @@ Slot::operator std::string() const {
     return ss.str();
 }
 
-void Slot::draw(sf::Uint8 *pixels, Coord2D &size) {
-    m_last_pixels = pixels;
+// TODO: Foreground/background transparency
+void Slot::draw_foreground(sf::Uint8 *pixels, Coord2D &size) {
+    m_lastSize = size;
+
+    sf::Color color{sf::Color::White};
+    switch(m_drawState) {
+        case DS_ACTIVATED: {
+            color = sf::Color::Green;
+            break;
+        }
+        case DS_HELD: {
+            color = sf::Color::Cyan;
+            break;
+        }
+        default: {
+            color = sf::Color::White;
+            break;
+        }
+    }
+
+    switch(m_playState) {
+        case PS_PLAYING: {
+            color = sf::Color::Blue;
+            break;
+        }
+        default: {
+            break;
+        }
+    }
+    color.a = 150;
+    m_bounds.assignToPixels(pixels, size, color, {1, 1});
+}
+
+void Slot::draw_background(sf::Uint8 *pixels, Coord2D &size) {
     m_lastSize = size;
 
     sf::Color color{sf::Color::White};
@@ -99,4 +145,11 @@ void Slot::draw(sf::Uint8 *pixels, Coord2D &size) {
         }
     }
     m_bounds.assignToPixels(pixels, size, color, {2, 2});
+}
+
+
+// TODO: Draw this to render texture (measure should pull that out and use it to fill the sprite)
+void Slot::drawText(sf::RenderTexture &targetTexture, sf::Vector2f offset) {
+    m_noteLabel.setPosition(m_bounds.top_left.x + offset.x, m_bounds.top_left.y + offset.y);
+    targetTexture.draw(m_noteLabel);
 }
