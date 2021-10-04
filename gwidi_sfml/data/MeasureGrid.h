@@ -18,11 +18,6 @@ private:
     int m_scroll_x{0};
     int m_scroll_y{0};
 
-    sf::Uint8* m_image_pixels;
-    sf::Image m_image;
-    sf::Texture m_texture;
-    sf::Sprite m_sprite;
-
 public:
     MeasureGrid(bool splitMeasures = true);
     ~MeasureGrid() = default;

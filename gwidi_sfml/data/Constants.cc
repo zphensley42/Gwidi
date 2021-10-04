@@ -4,7 +4,9 @@ std::vector<int>& Constants::octaves() {
     static std::vector<int> v = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
     return v;
 }
-int Constants::measure_count = 20;
+// TODO: 200 is throwing bad alloc, run with memcheck / asan
+// TODO: Once data is done, use that to determine what to build instead of the counts of rows / cols / etc
+int Constants::measure_count = 100;
 int Constants::slots_per_measure = 16;
 std::unordered_map<const char*, int> Constants::notes = {
         {"C2", 8},

@@ -1,6 +1,11 @@
 #include "DataManager.h"
 #include "../events/ThreadPool.h"
 
+DataManager &DataManager::instance() {
+    static DataManager s_instance;
+    return s_instance;
+}
+
 void DataManager::load(GlobalMouseEventHandler &handler) {
     if(m_isLoaded.load()) {
         return;

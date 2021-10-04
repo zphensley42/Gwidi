@@ -25,5 +25,5 @@ if(NOT SFML_FOUND)
     message("-> Make sure the SFML libraries >= 2.5 with the same configuration (Release/Debug, Static/Dynamic) exist.\n")
 endif()
 
-add_executable(gwidi_sfml main.cc data/Slot.cc data/Slot.h data/MeasureGrid.cc data/MeasureGrid.h data/Constants.h data/Note.cc data/Note.h data/Constants.cc data/Base.h events/GlobalMouseEventHandler.cc events/GlobalMouseEventHandler.h data/Measure.cc data/Measure.h events/ThreadPool.cc events/ThreadPool.h data/DataManager.cc data/DataManager.h gui/ControlBar.cc gui/ControlBar.h gui/LayoutManager.cc gui/LayoutManager.h)
+add_executable(gwidi_sfml main.cc data/Slot.cc data/Slot.h data/MeasureGrid.cc data/MeasureGrid.h data/Constants.h data/Note.cc data/Note.h data/Constants.cc data/Base.h events/GlobalMouseEventHandler.cc events/GlobalMouseEventHandler.h data/Measure.cc data/Measure.h events/ThreadPool.cc events/ThreadPool.h data/DataManager.cc data/DataManager.h gui/ControlBar.cc gui/ControlBar.h gui/LayoutManager.cc gui/LayoutManager.h gui/ScrubBar.cc gui/ScrubBar.h)
 target_link_libraries(gwidi_sfml sfml-audio sfml-graphics sfml-window sfml-system)
