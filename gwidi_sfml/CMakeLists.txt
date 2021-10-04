@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.15.3)
 project(gwidi_sfml)
 
 set(SFML_USE_STATIC_STD_LIBS ON)
@@ -12,8 +12,12 @@ set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g -O0")
 # Find SFML. Note: this handles all dependencies, libraries and include directories.
 #set(SFML_DIR "external/SFML/cmake")
 #add_subdirectory("external/SFML")
-set(SFML_DIR "external/compiled/SFML-2.5.1/lib/cmake/SFML")
-find_package(SFML 2.5 COMPONENTS audio graphics window system REQUIRED)
+if (WIN32)
+    set(SFML_DIR "external/compiled/SFML-2.5.1/lib/cmake/SFML")
+    find_package(SFML 2.5 COMPONENTS audio graphics window system REQUIRED)
+else()
+    add_subdirectory(external/SFML)
+endif (WIN32)
 
 if(NOT SFML_FOUND)
     set(SFML_DIR "" CACHE PATH "SFML top-level directory")
