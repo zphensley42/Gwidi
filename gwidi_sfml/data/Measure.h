@@ -44,7 +44,7 @@ public:
 
     sf::FloatRect globalBounds() const;
 
-    Slot* slotIndexForMouse(int x, int y);
+    Slot* slotIndexForMouse(int x, int y, bool remove = false);
 };
 
 

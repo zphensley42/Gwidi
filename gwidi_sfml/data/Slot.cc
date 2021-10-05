@@ -155,37 +155,38 @@ void Slot::draw_foreground(sf::Uint8 *pixels, Coord2D &size) {
 void Slot::draw_background(sf::Uint8 *pixels, Coord2D &size) {
     m_lastSize = size;
 
+    // Background is always white
     sf::Color color{sf::Color::White};
-    switch(m_drawState) {
-        case DS_ACTIVATED: {
-            color = sf::Color::Green;
-            break;
-        }
-        case DS_HELD: {
-            color = sf::Color::Cyan;
-            break;
-        }
-        default: {
-            color = sf::Color::White;
-            break;
-        }
-    }
-
-    switch(m_playState) {
-        case PS_PLAYING: {
-            color = sf::Color::Blue;
-            break;
-        }
-        default: {
-            break;
-        }
-    }
+//    switch(m_drawState) {
+//        case DS_ACTIVATED: {
+//            color = sf::Color::Green;
+//            break;
+//        }
+//        case DS_HELD: {
+//            color = sf::Color::Cyan;
+//            break;
+//        }
+//        default: {
+//            color = sf::Color::White;
+//            break;
+//        }
+//    }
+//
+//    switch(m_playState) {
+//        case PS_PLAYING: {
+//            color = sf::Color::Blue;
+//            break;
+//        }
+//        default: {
+//            break;
+//        }
+//    }
     m_bounds.assignToPixels(pixels, size, color, {2, 2});
 }
 
 
 // TODO: Draw this to render texture (measure should pull that out and use it to fill the sprite)
 void Slot::drawText(sf::RenderTexture &targetTexture, sf::Vector2f offset) {
-    m_noteLabel.setPosition(m_bounds.top_left.x + offset.x, m_bounds.top_left.y + offset.y);
+    m_noteLabel.setPosition(m_bounds.top_left.x + offset.x + 4, m_bounds.top_left.y + offset.y);
     targetTexture.draw(m_noteLabel);
 }

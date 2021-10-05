@@ -42,12 +42,12 @@ int main() {
                 window.close();
             else if(event.type == sf::Event::MouseButtonPressed) {
                 std::cout << "event pressed, button: " << event.mouseButton.button << std::endl;
-                if (event.mouseButton.button == 1 || event.mouseButton.button == 0) {
+                if (event.mouseButton.button == 1 || event.mouseButton.button == 0 || event.mouseButton.button == 2) {
                     handler.handleMouseDown(event.mouseButton.button, event.mouseButton.x, event.mouseButton.y);
                 }
             }
             else if(event.type == sf::Event::MouseButtonReleased) {
-                if(event.mouseButton.button == 1 || event.mouseButton.button == 0) {
+                if(event.mouseButton.button == 1 || event.mouseButton.button == 0 || event.mouseButton.button == 2) {
                     handler.handleMouseUp();
                 }
             }

@@ -2,6 +2,7 @@
 #define GWIDI_SFML_SLOT_H
 
 #include "Constants.h"
+#include <atomic>
 #include "Base.h"
 #include "GwidiData.h"
 #include <SFML/Graphics.hpp>
@@ -33,6 +34,20 @@ public:
             draw_foreground(pixels, m_lastSize);
         }
     }
+    inline void updateDrawState(DrawState drawState, sf::Uint8* pixels) {
+        m_drawState = drawState;
+        if(pixels) {
+            // TODO: Determine alpha from our states
+            draw_foreground(pixels, m_lastSize);
+        }
+    }
+    inline void updatePlayState(PlayState playState, sf::Uint8* pixels) {
+        m_playState = playState;
+        if(pixels) {
+            // TODO: Determine alpha from our states
+            draw_foreground(pixels, m_lastSize);
+        }
+    }
     void draw_background(sf::Uint8 *pixels, Coord2D &size);
     void draw_foreground(sf::Uint8 *pixels, Coord2D &size);
     void drawText(sf::RenderTexture &targetTexture, sf::Vector2f offset);
@@ -45,7 +60,6 @@ private:
     UiConstants::Slot_ColType m_type;
     sf::Text m_noteLabel;
 
-    bool m_isDrawn{false};
     DrawState m_drawState{DS_NONE};
     PlayState m_playState{PS_NONE};
 

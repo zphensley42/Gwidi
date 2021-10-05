@@ -43,26 +43,26 @@ struct RectBounds {
 
     void assignToPixels(sf::Uint8 *pixels, Coord2D &size, sf::Color color, sf::Vector2<int> padding = {0, 0}) {
         // pixels is 1d, need to get the indices
-        Coord2D& tl = top_left;
-        Coord2D& tr = top_right;
-        Coord2D& bl = bottom_left;
-        Coord2D& br = bottom_right;
+        Coord2D* tl = &top_left;
+        Coord2D* tr = &top_right;
+        Coord2D* bl = &bottom_left;
+        Coord2D* br = &bottom_right;
         if(padding.x != 0 && padding.y != 0) {
             padding_top_left        = {top_left.x + padding.x, top_left.y + padding.y};
             padding_top_right       = {top_right.x - padding.x, top_right.y + padding.y};
             padding_bottom_left     = {bottom_left.x + padding.x, bottom_left.y - padding.y};
             padding_bottom_right    = {bottom_right.x - padding.x, bottom_right.y - padding.y};
 
-            tl = padding_top_left;
-            tr = padding_top_right;
-            bl = padding_bottom_left;
-            br = padding_bottom_right;
+            tl = &padding_top_left;
+            tr = &padding_top_right;
+            bl = &padding_bottom_left;
+            br = &padding_bottom_right;
         }
 
         // Assign pixels from top-left -> bottom-right
         // Each entry is 32 bits, need to increment as necessary
-        for(size_t x = tl.x; x < tr.x; x++) {
-            for(size_t y = tl.y; y < bl.y; y++) {
+        for(size_t x = tl->x; x < tr->x; x++) {
+            for(size_t y = tl->y; y < bl->y; y++) {
                 size_t index = ((size.x * y) + x) * 4;
                 pixels[index + 0] = color.r; // R
                 pixels[index + 1] = color.g; // G

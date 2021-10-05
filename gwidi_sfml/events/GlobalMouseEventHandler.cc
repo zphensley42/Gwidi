@@ -15,6 +15,18 @@ void GlobalMouseEventHandler::handleMouseDown(int but, int x, int y) {
 void GlobalMouseEventHandler::handleMouseUp() {
     m_isDown = false;
     m_isDragging = false;
+
+    if(m_down_mouse_but == 0) {
+        for(auto& cb : m_cbs) {
+            cb->onLeftUp(m_last_frame_x, m_last_frame_y);
+        }
+    }
+    else if(m_down_mouse_but == 2) {
+        for(auto& cb : m_cbs) {
+            cb->onRightUp(m_last_frame_x, m_last_frame_y);
+        }
+    }
+
     m_last_frame_x = 0;
     m_last_frame_y = 0;
 }
@@ -46,6 +58,13 @@ void GlobalMouseEventHandler::handleMouseMove(int x, int y) {
     else if(m_down_mouse_but == 0) {
         for(auto& cb : m_cbs) {
             if(cb->onLeftDown(x, y)) {
+                break;
+            }
+        }
+    }
+    else if(m_down_mouse_but == 2) {
+        for(auto& cb : m_cbs) {
+            if(cb->onRightDown(x, y)) { // yeah yeah, it isn't 'right' it is 'middle', but w/e
                 break;
             }
         }

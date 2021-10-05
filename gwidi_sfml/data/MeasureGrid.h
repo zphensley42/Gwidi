@@ -28,6 +28,9 @@ public:
     bool onLeftDown(int x, int y) override;
     void onLeftUp(int x, int y) override;
 
+    bool onRightDown(int x, int y) override;
+    void onRightUp(int x, int y) override;
+
     void draw(sf::RenderWindow &window, sf::View& target, sf::Vector2f position);
 
     explicit operator std::string() const;

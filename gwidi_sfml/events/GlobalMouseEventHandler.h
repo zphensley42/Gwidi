@@ -26,6 +26,9 @@ public:
         virtual void onScrolled(int x, int y) = 0;
         virtual bool onLeftDown(int x, int y) = 0;
         virtual void onLeftUp(int x, int y) = 0;
+
+        virtual bool onRightDown(int x, int y) = 0;
+        virtual void onRightUp(int x, int y) = 0;
     };
 
     void handleMouseDown(int but, int x, int y);

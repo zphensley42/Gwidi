@@ -43,7 +43,7 @@ Measure::Measure(gwidi::data::Octave& o, Identifier id) : UiView(id) {
     // Build our notes/slots from the id information / constants
     int index = 0;
     for(auto &note : o.notes()) {
-        std::cout << "note key: " << note.key() << ", octave_index: " << id.octave_index << ", note_index: " << index << std::endl;
+//        std::cout << "note key: " << note.key() << ", octave_index: " << id.octave_index << ", note_index: " << index << std::endl;
         m_notes.emplace_back(Note{note, {id.octave_index, id.measure_index, index, 0}});
         index++;
     }
@@ -150,7 +150,7 @@ void Measure::scroll(sf::Vector2f offset) {
     m_foreground_sprite.setPosition(m_initialPos + offset);
 }
 
-Slot* Measure::slotIndexForMouse(int x, int y) {
+Slot* Measure::slotIndexForMouse(int x, int y, bool remove) {
     auto g_bounds = m_background_sprite.getGlobalBounds();
     if(g_bounds.contains(x, y)) {
         // Get index via the slot width / height vs bounds
@@ -181,7 +181,17 @@ Slot* Measure::slotIndexForMouse(int x, int y) {
         auto &slot = m_notes[note_index].slots()[slot_index];
 
         // Use these indices / this measure to trigger the slot
-        slot.updateStates(Slot::DrawState::DS_ACTIVATED, slot.playState(), m_foreground_image_pixels);
+        if(remove) {
+            slot.updateDrawState(Slot::DrawState::DS_NONE, m_foreground_image_pixels);
+        }
+        else {
+            if(slot.drawState() == Slot::DrawState::DS_ACTIVATED) {
+                slot.updateDrawState(Slot::DrawState::DS_HELD, m_foreground_image_pixels);
+            }
+            else {
+                slot.updateDrawState(Slot::DrawState::DS_ACTIVATED, m_foreground_image_pixels);
+            }
+        }
 
         m_foreground_texture.update(m_foreground_image_pixels);
         m_foreground_sprite.setTexture(m_foreground_texture);

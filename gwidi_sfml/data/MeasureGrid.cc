@@ -116,3 +116,27 @@ void MeasureGrid::onLeftUp(int x, int y) {
         }
     });
 }
+
+bool MeasureGrid::onRightDown(int x, int y) {
+    // Need to determine the proper x/y position by coordinate conversion since the measures are in a view now
+    auto mappedCoords = LayoutManager::instance().window()->mapPixelToCoords({x, y}, LayoutManager::instance().contentTarget());
+    ThreadPool::instance().schedule([this, mappedCoords]() {
+        for(auto &m : m_measures) {
+            auto slot = m.slotIndexForMouse(mappedCoords.x, mappedCoords.y, true);
+            if(slot) {
+                // Use these indices / this measure to trigger the slot
+                std::cout << "onRightDown measure found {o: " << m.id().octave_index << ", m: " << m.id().measure_index << "}" << std::endl;
+                return true;
+            }
+        }
+    });
+    return false;
+}
+
+void MeasureGrid::onRightUp(int x, int y) {
+    ThreadPool::instance().schedule([this]() {
+        for(auto &m : m_measures) {
+            m.clearTriggeredSlotsStatus();
+        }
+    });
+}
