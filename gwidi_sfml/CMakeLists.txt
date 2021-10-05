@@ -9,6 +9,9 @@ set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0")
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g -O0")
 
+set(Gwidi_Importer_DIR ${CMAKE_CURRENT_LIST_DIR}/external/Gwidi_Importer/)
+find_package(Gwidi_Importer REQUIRED)
+
 # Find SFML. Note: this handles all dependencies, libraries and include directories.
 #set(SFML_DIR "external/SFML/cmake")
 #add_subdirectory("external/SFML")
@@ -26,4 +29,8 @@ if(NOT SFML_FOUND)
 endif()
 
 add_executable(gwidi_sfml main.cc data/Slot.cc data/Slot.h data/MeasureGrid.cc data/MeasureGrid.h data/Constants.h data/Note.cc data/Note.h data/Constants.cc data/Base.h events/GlobalMouseEventHandler.cc events/GlobalMouseEventHandler.h data/Measure.cc data/Measure.h events/ThreadPool.cc events/ThreadPool.h data/DataManager.cc data/DataManager.h gui/ControlBar.cc gui/ControlBar.h gui/LayoutManager.cc gui/LayoutManager.h gui/ScrubBar.cc gui/ScrubBar.h)
-target_link_libraries(gwidi_sfml sfml-audio sfml-graphics sfml-window sfml-system)
+target_link_libraries(gwidi_sfml Gwidi_Importer sfml-audio sfml-graphics sfml-window sfml-system)
+get_target_property(Gwidi_Importer_Includes Gwidi_Importer INCLUDE_DIRECTORIES)
+message("Gwidi_Importer_Includes: ${Gwidi_Importer_Includes}")
+target_include_directories(gwidi_sfml PUBLIC ${Gwidi_Importer_Includes})
+

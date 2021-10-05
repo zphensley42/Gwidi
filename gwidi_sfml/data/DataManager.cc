@@ -12,6 +12,7 @@ void DataManager::load(GlobalMouseEventHandler &handler) {
     }
 
     ThreadPool::instance().schedule([this, &handler]() {
+        // Convert our data to the 'grid' (song -> grid -- use our m_selectedTrack inside of Song)
         m_grid = std::make_shared<MeasureGrid>();
 
         handler.subscribe(m_grid);

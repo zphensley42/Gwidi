@@ -4,38 +4,10 @@
 #include "MeasureGrid.h"
 #include <memory>
 #include <atomic>
+#include "GwidiData.h"
 
 // TODO: Create data classes for slots / notes / etc that can be 'applied' to the UI grid for updates
 // TODO: 2d array of slots as the primary class?
-class DataSlot {
-public:
-private:
-
-};
-
-class DataNote {
-public:
-private:
-    std::vector<DataSlot> m_slots;
-};
-
-class DataOctave {
-public:
-private:
-    std::vector<DataNote> m_notes;
-};
-
-class DataMeasure {
-public:
-private:
-    std::vector<DataOctave> m_octaves;
-};
-
-class DataSong {
-public:
-private:
-    std::vector<DataMeasure> m_measures;
-};
 
 class DataManager {
 public:
@@ -50,6 +22,9 @@ public:
 private:
     std::atomic_bool m_isLoaded{false};
     std::shared_ptr<MeasureGrid> m_grid{nullptr};
+
+    std::shared_ptr<gwidi::data::Song> m_song{nullptr};
+    int m_selectedTrack{0};
 };
 
 
