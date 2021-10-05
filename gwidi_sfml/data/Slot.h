@@ -3,6 +3,7 @@
 
 #include "Constants.h"
 #include "Base.h"
+#include "GwidiData.h"
 #include <SFML/Graphics.hpp>
 
 class Slot : public UiView {
@@ -20,6 +21,7 @@ public:
 
     Slot();
     Slot(Identifier id);
+    Slot(gwidi::data::Slot& s, Identifier id);
     Slot(Identifier id, UiConstants::Slot_ColType type);
     ~Slot() = default;
 

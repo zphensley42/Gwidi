@@ -12,8 +12,22 @@ void DataManager::load(GlobalMouseEventHandler &handler) {
     }
 
     ThreadPool::instance().schedule([this, &handler]() {
+        // Start with an empty song
+//        m_song = std::make_shared<gwidi::data::Song>();
+//        m_song->emptyInit(1, 3);
+
         // Convert our data to the 'grid' (song -> grid -- use our m_selectedTrack inside of Song)
-        m_grid = std::make_shared<MeasureGrid>();
+//        m_grid = std::make_shared<MeasureGrid>(m_song->tracks()[0]);
+
+        // For testing, always import something
+//        m_song = std::make_shared<gwidi::data::Song>();
+        auto song = gwidi::data::Importer::instance().import("E:\\Tools\\repos\\Gwidi\\gwidi_sfml\\external\\Gwidi_Importer\\assets\\test_data\\simple.mid");
+        m_song = std::shared_ptr<gwidi::data::Song>(song);
+//        m_song->emptyInit(1, 3);
+        m_grid = std::make_shared<MeasureGrid>(m_song->tracks()[0]);
+
+        auto octave4_noteb_slots = m_song->slotsForParams(0, 4, "B");
+
 
         handler.subscribe(m_grid);
         auto mgBounds = m_grid->bounds();

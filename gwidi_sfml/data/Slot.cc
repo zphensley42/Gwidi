@@ -29,6 +29,42 @@ Slot::Slot(Identifier id) : UiView(id) {
     m_noteLabel.setPosition(m_bounds.top_left.x, m_bounds.top_left.y);
 }
 
+Slot::Slot(gwidi::data::Slot& slot, Identifier id) : UiView(id) {
+    switch(slot.state()) {
+        case gwidi::data::Slot::State::SLOT_ACTIVATED: {
+            m_drawState = DrawState::DS_ACTIVATED;
+            break;
+        }
+        case gwidi::data::Slot::State::SLOT_HELD: {
+            m_drawState = DrawState::DS_HELD;
+            break;
+        }
+    }
+
+    int width = UiConstants::slot_width;
+    int height = UiConstants::slot_height;
+    int y = id.note_index * UiConstants::slot_height;
+    int x = id.slot_index * UiConstants::slot_width;
+
+    m_bounds.top_left = {x, y};
+    m_bounds.bottom_left = {x, y + height};
+    m_bounds.top_right = {x + width, y};
+    m_bounds.bottom_right = {x + width, y + height};
+
+    auto noteIt = std::find_if(Constants::notes.begin(), Constants::notes.end(),[&id](std::unordered_map<const char*, int>::value_type &entry) {
+        return entry.second == (Constants::notes.size() - id.note_index);
+    });
+    std::string noteLabel = "Note Not Found";
+    if(noteIt != Constants::notes.end()) {
+        noteLabel = noteIt->first;
+    }
+    m_noteLabel.setFont(LayoutManager::instance().mainFont());
+    m_noteLabel.setString(noteLabel);
+    m_noteLabel.setCharacterSize(10);
+    m_noteLabel.setFillColor(sf::Color::Black);
+    m_noteLabel.setPosition(m_bounds.top_left.x, m_bounds.top_left.y);
+}
+
 Slot::Slot(Identifier id, UiConstants::Slot_ColType type) : m_type{type} {
     int octaves_height_offset = id.octave_index * (Constants::notes.size() * UiConstants::slot_height);
     int note_height_offset = id.note_index * UiConstants::slot_height;

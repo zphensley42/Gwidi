@@ -6,6 +6,8 @@
 // TODO: Foreground is transparent except for squares that are activated (and these are semi-transparent as 'overlays' of the slots behind)
 // TODO: This is an efficiency thing b/c the data lives in GPU buffers and we can't constantly update the same data for render texture as result (but we can a texture)
 
+// TODO: Draw quarter note measure lines (every 4th slot) -- draw as part of background texture
+
 Measure::~Measure() {
     if(m_background_renderTexture) {
         delete m_background_renderTexture;
@@ -25,6 +27,25 @@ Measure::Measure(Identifier id) : UiView(id) {
     int rows = Constants::notes.size();
     for(int r = 0; r < rows; r++) {
         m_notes.emplace_back(Note{{id.octave_index, id.measure_index, r, 0}});
+    }
+
+    m_bounds.top_left = {m_notes.front().bounds().top_left.x, m_notes.front().bounds().top_left.y};
+    m_bounds.top_right = {m_notes.front().bounds().top_right.x, m_notes.front().bounds().top_right.y};
+    m_bounds.bottom_left = {m_notes.back().bounds().bottom_left.x, m_notes.back().bounds().bottom_left.y};
+    m_bounds.bottom_right = {m_notes.back().bounds().bottom_right.x, m_notes.back().bounds().bottom_right.y};
+
+    m_bounds.bottom_left.y += UiConstants::measure_label_height;
+    m_bounds.bottom_right.y += UiConstants::measure_label_height;
+}
+
+Measure::Measure(gwidi::data::Octave& o, Identifier id) : UiView(id) {
+
+    // Build our notes/slots from the id information / constants
+    int index = 0;
+    for(auto &note : o.notes()) {
+        std::cout << "note key: " << note.key() << ", octave_index: " << id.octave_index << ", note_index: " << index << std::endl;
+        m_notes.emplace_back(Note{note, {id.octave_index, id.measure_index, index, 0}});
+        index++;
     }
 
     m_bounds.top_left = {m_notes.front().bounds().top_left.x, m_notes.front().bounds().top_left.y};
@@ -64,6 +85,20 @@ void Measure::build(sf::Vector2f offset) {
     m_background_renderTexture = new sf::RenderTexture();
     m_background_renderTexture->create(size.x, size.y);
     m_background_renderTexture->draw(m_background_sprite);
+
+    // Draw quarter note boundaries
+    for(auto &n : m_notes) {
+        int index = 0;
+        for(auto &s : n.slots()) {
+            index++;
+            if(index % 4 == 0) {
+                sf::RectangleShape quarterNoteRect({2.f, static_cast<float>(s.bounds().bottom_right.y - s.bounds().top_right.y)});
+                quarterNoteRect.setFillColor(sf::Color::Red);
+                quarterNoteRect.setPosition(s.bounds().top_right.x, s.bounds().top_right.y);
+                m_background_renderTexture->draw(quarterNoteRect);
+            }
+        }
+    }
 
     sf::RectangleShape labelRect({static_cast<float>(size.x), static_cast<float>(UiConstants::measure_label_height)});
     labelRect.setPosition({0.f, static_cast<float>( size.y - UiConstants::measure_label_height)});

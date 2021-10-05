@@ -5,6 +5,7 @@
 #include <vector>
 #include "Base.h"
 #include "Slot.h"
+#include "GwidiData.h"
 
 class Note : public UiView {
 private:
@@ -14,6 +15,7 @@ private:
 public:
     Note();
     Note(Identifier id);
+    Note(gwidi::data::Note& n, Identifier id);
     Note(Identifier& id, UiConstants::Note_RowType type);
     ~Note() = default;
 

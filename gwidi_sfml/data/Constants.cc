@@ -1,7 +1,7 @@
 #include "Constants.h"
 
 std::vector<int>& Constants::octaves() {
-    static std::vector<int> v = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
+    static std::vector<int> v = { 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, -1 };
     return v;
 }
 // TODO: 200 is throwing bad alloc, run with memcheck / asan

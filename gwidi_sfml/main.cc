@@ -11,6 +11,9 @@
 // TODO: For the text on the slots, draw them to a render texture, save that out, use it as the texture of the sprite that we modify with clicks
 // TODO: See: https://progsv.epfl.ch/www/doc-sfml/html/classsf_1_1RenderTexture.htm   https://en.sfml-dev.org/forums/index.php?topic=16086.0
 
+
+// TODO: Make a logger class
+
 int main() {
     // Create the main window
     sf::RenderWindow window(sf::VideoMode(800, 600), "SFML window");

@@ -20,6 +20,21 @@ Note::Note(Identifier id) : UiView(id) {
     }
 }
 
+Note::Note(gwidi::data::Note& note, Identifier id) : UiView(id) {
+    int cols = note.slots().size();
+    int width = cols * UiConstants::slot_width;
+    int height = UiConstants::slot_height;
+    int y = UiConstants::slot_height * id.note_index;
+    for(int c = 0; c < cols; c++) {
+        m_bounds.top_left = {0, y};
+        m_bounds.bottom_left = {0, y + height};
+        m_bounds.top_right = {width, y};
+        m_bounds.bottom_right = {width, y + height};
+
+        m_slots.emplace_back(Slot{note.slots()[c], {0, 0, id.note_index, c}});
+    }
+}
+
 Note::Note(Identifier& id, UiConstants::Note_RowType type) : m_type{type} {
     int octaves_height_offset = id.octave_index * (Constants::notes.size() * UiConstants::slot_height);
     int note_height_offset = id.note_index * UiConstants::slot_height;

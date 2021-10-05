@@ -6,6 +6,7 @@
 #include <vector>
 #include <SFML/Graphics.hpp>
 #include <mutex>
+#include "GwidiData.h"
 
 class Measure : public UiView {
 private:
@@ -30,6 +31,7 @@ private:
 public:
     Measure();
     Measure(Identifier id);
+    Measure(gwidi::data::Octave &o, Identifier id);
     ~Measure();
 
     void build(sf::Vector2f offset);

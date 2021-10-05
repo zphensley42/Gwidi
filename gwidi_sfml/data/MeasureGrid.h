@@ -8,6 +8,7 @@
 #include "Measure.h"
 #include <SFML/Graphics.hpp>
 #include "../events/GlobalMouseEventHandler.h"
+#include "GwidiData.h"
 
 class Slot;
 
@@ -19,7 +20,8 @@ private:
     int m_scroll_y{0};
 
 public:
-    MeasureGrid(bool splitMeasures = true);
+    MeasureGrid();
+    MeasureGrid(gwidi::data::Track &track);
     ~MeasureGrid() = default;
 
     void onScrolled(int x, int y) override;
