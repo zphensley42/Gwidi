@@ -7,7 +7,7 @@ LayoutManager &LayoutManager::instance() {
 }
 
 // TODO: View for the note labels on the left? (may just rely on the text in the slots instead)
-void LayoutManager::setup(sf::RenderWindow &window) {
+void LayoutManager::setup(sf::RenderWindow &window, GlobalMouseEventHandler& handler) {
     if (!m_mainFont.loadFromFile("E:/tools/repos/gwidi_sfml/assets/arial.ttf")) {
         std::cerr << "Failed to load main font\n";
     }
@@ -31,11 +31,17 @@ void LayoutManager::setup(sf::RenderWindow &window) {
 
     m_scrubBack.setFillColor(sf::Color::Blue);
     m_scrubBack.setSize(m_scrubView.getSize());
+
+    if(!m_controlBar) {
+        m_controlBar = std::make_shared<ControlBar>();
+        handler.subscribe(m_controlBar);
+    }
 }
 
 void LayoutManager::draw(sf::RenderWindow &window) {
     window.setView(m_controlsView);
     window.draw(m_controlsBack);
+    m_controlBar->draw({0, 0});
 
     window.setView(m_contentView);
     window.draw(m_contentBack);

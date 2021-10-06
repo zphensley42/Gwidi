@@ -35,7 +35,7 @@ void DataManager::load(GlobalMouseEventHandler &handler) {
         int max_scroll_x = UiConstants::measure_width;
         int min_scroll_y = (mgBounds.bottom_left.y * -1) + UiConstants::measure_height;
         int max_scroll_y = UiConstants::measure_height;
-        handler.setScrollAmountLimits(min_scroll_x, max_scroll_x, min_scroll_y, max_scroll_y);
+        m_grid->setScrollAmountLimits(min_scroll_x, max_scroll_x, min_scroll_y, max_scroll_y);
 
         m_isLoaded.store(true);
     });

@@ -92,7 +92,7 @@ void Measure::build(sf::Vector2f offset) {
         for(auto &s : n.slots()) {
             index++;
             if(index % 4 == 0) {
-                sf::RectangleShape quarterNoteRect({2.f, static_cast<float>(s.bounds().bottom_right.y - s.bounds().top_right.y)});
+                sf::RectangleShape quarterNoteRect({2.f, static_cast<float>(s.bounds().size().y)});
                 quarterNoteRect.setFillColor(sf::Color::Red);
                 quarterNoteRect.setPosition(s.bounds().top_right.x, s.bounds().top_right.y);
                 m_background_renderTexture->draw(quarterNoteRect);

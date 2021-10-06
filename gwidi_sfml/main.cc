@@ -5,6 +5,7 @@
 
 #include "data/DataManager.h"
 #include "gui/LayoutManager.h"
+#include "gui/ControlBar.h"
 #include "events/ThreadPool.h"
 #include "data/MeasureGrid.h"
 
@@ -18,16 +19,16 @@ int main() {
     // Create the main window
     sf::RenderWindow window(sf::VideoMode(800, 600), "SFML window");
     // Load music to play
-    sf::Music music;
-    if (!music.openFromFile("E:/tools/repos/gwidi_sfml/assets/gw_prophecies.ogg"))
-        return EXIT_FAILURE;
-    // Play the music
-    music.play();
+//    sf::Music music;
+//    if (!music.openFromFile("E:/tools/repos/gwidi_sfml/assets/gw_prophecies.ogg"))
+//        return EXIT_FAILURE;
+//    // Play the music
+//    music.play();
 
     GlobalMouseEventHandler handler;
     DataManager dataManager;
     LayoutManager::instance().assignWindow(window);
-    LayoutManager::instance().setup(window);
+    LayoutManager::instance().setup(window, handler);
     dataManager.load(handler);
 
     // Start the game loop
@@ -48,7 +49,7 @@ int main() {
             }
             else if(event.type == sf::Event::MouseButtonReleased) {
                 if(event.mouseButton.button == 1 || event.mouseButton.button == 0 || event.mouseButton.button == 2) {
-                    handler.handleMouseUp();
+                    handler.handleMouseUp(event.mouseButton.button);
                 }
             }
             else if(event.type == sf::Event::MouseMoved) {
@@ -57,7 +58,7 @@ int main() {
             else if (event.type == sf::Event::Resized) {
                 // update the view to the new size of the window (show more instead of stretch views to the new 'size')
 //                sf::FloatRect visibleArea(0, 0, event.size.width, event.size.height);
-                LayoutManager::instance().setup(window);
+                LayoutManager::instance().setup(window, handler);
 //                window.setView(sf::View(visibleArea));
             }
         }
@@ -69,8 +70,6 @@ int main() {
         // 3 panels (control bar, grid content, scrub bar)
         // Set views / viewports so that content in the middle is restrained
         LayoutManager::instance().draw(window);
-
-
 
         if(dataManager.isLoaded()) {
             dataManager.grid()->draw(window, LayoutManager::instance().contentTarget(), {0, 0});

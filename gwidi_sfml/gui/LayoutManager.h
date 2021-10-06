@@ -2,13 +2,15 @@
 #define GWIDI_SFML_LAYOUTMANAGER_H
 
 #include <SFML/Graphics.hpp>
+#include "ControlBar.h"
+#include "../events/GlobalMouseEventHandler.h"
 
 class LayoutManager {
 public:
     static LayoutManager& instance();
     LayoutManager() = default;
 
-    void setup(sf::RenderWindow &window);
+    void setup(sf::RenderWindow &window, GlobalMouseEventHandler& handler);
     void draw(sf::RenderWindow &window);
 
     inline void assignWindow(sf::RenderWindow& window) {
@@ -20,6 +22,11 @@ public:
 
     inline sf::Font& mainFont() {
         return m_mainFont;
+    }
+
+
+    inline sf::View& controlsTarget() {
+        return m_controlsView;
     }
 
     inline sf::View& contentTarget() {
@@ -36,6 +43,8 @@ private:
     sf::RectangleShape m_scrubBack;
 
     sf::Font m_mainFont;
+
+    std::shared_ptr<ControlBar> m_controlBar{nullptr};
 };
 
 

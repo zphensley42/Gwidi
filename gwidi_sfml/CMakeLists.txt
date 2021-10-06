@@ -28,7 +28,7 @@ if(NOT SFML_FOUND)
     message("-> Make sure the SFML libraries >= 2.5 with the same configuration (Release/Debug, Static/Dynamic) exist.\n")
 endif()
 
-add_executable(gwidi_sfml main.cc data/Slot.cc data/Slot.h data/MeasureGrid.cc data/MeasureGrid.h data/Constants.h data/Note.cc data/Note.h data/Constants.cc data/Base.h events/GlobalMouseEventHandler.cc events/GlobalMouseEventHandler.h data/Measure.cc data/Measure.h events/ThreadPool.cc events/ThreadPool.h data/DataManager.cc data/DataManager.h gui/ControlBar.cc gui/ControlBar.h gui/LayoutManager.cc gui/LayoutManager.h gui/ScrubBar.cc gui/ScrubBar.h)
+add_executable(gwidi_sfml main.cc data/Slot.cc data/Slot.h data/MeasureGrid.cc data/MeasureGrid.h data/Constants.h data/Note.cc data/Note.h data/Constants.cc data/Base.h events/GlobalMouseEventHandler.cc events/GlobalMouseEventHandler.h data/Measure.cc data/Measure.h events/ThreadPool.cc events/ThreadPool.h data/DataManager.cc data/DataManager.h gui/ControlBar.cc gui/ControlBar.h gui/LayoutManager.cc gui/LayoutManager.h gui/ScrubBar.cc gui/ScrubBar.h gui/UiButton.cc gui/UiButton.h)
 target_link_libraries(gwidi_sfml Gwidi_Importer sfml-audio sfml-graphics sfml-window sfml-system)
 get_target_property(Gwidi_Importer_Includes Gwidi_Importer INCLUDE_DIRECTORIES)
 message("Gwidi_Importer_Includes: ${Gwidi_Importer_Includes}")
