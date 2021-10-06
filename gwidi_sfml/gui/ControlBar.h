@@ -10,16 +10,26 @@
 class ControlBar : public UiView, public GlobalMouseEventHandler::Callback {
 public:
     ControlBar();
+    ~ControlBar();
     void draw(sf::Vector2<int> position);
 
-    void onMouseMove(int x, int y) override;
+    bool onMouseMove(int x, int y) override;
     bool onMouseDown(int x, int y, int but) override;
-    void onMouseUp(int but) override;
+    bool onMouseUp(int but) override;
 private:
-    UiButton m_playBut;
-    bool m_mouseDown{false};
+    friend class PlayCb;
 
-    void refreshPlayButtonState(int x, int y);
+    UiButton::Callback* m_playCb;
+
+    // TODO: Need a pop-up class for the settings dialog
+
+    UiButton m_playBut;
+    UiButton m_loadBut;
+    UiButton m_saveBut;
+    UiButton m_settingsBut;
+
+    // Cached values used in drawing (to prevent draw loop allocations)
+    sf::Vector2f m_draw_pos{};
 };
 
 

@@ -88,7 +88,7 @@ void MeasureGrid::draw(sf::RenderWindow &window, sf::View &target, sf::Vector2f 
     // TODO: Draw measure / octave labels
 }
 
-void MeasureGrid::onMouseMove(int x, int y) {
+bool MeasureGrid::onMouseMove(int x, int y) {
     if(m_dragDown) {
         auto diffX = m_last_frame_x - x;
         auto diffY = m_last_frame_y - y;
@@ -104,6 +104,8 @@ void MeasureGrid::onMouseMove(int x, int y) {
     else if(m_selectDown) {
         performIndexChecks(x, y, m_last_down_but == 2); // todo: use stack for last buttons?
     }
+
+    return false;
 }
 
 bool MeasureGrid::onMouseDown(int x, int y, int but) {
@@ -123,14 +125,17 @@ bool MeasureGrid::onMouseDown(int x, int y, int but) {
     return false;
 }
 
-void MeasureGrid::onMouseUp(int but) {
+bool MeasureGrid::onMouseUp(int but) {
     if(but == 1) {
         m_dragDown = false;
+        return true;
     }
     else {
         m_selectDown = false;
         clearTriggeredIndices();
     }
+
+    return false;
 }
 
 

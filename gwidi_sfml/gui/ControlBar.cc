@@ -1,8 +1,40 @@
 #include "ControlBar.h"
 #include "LayoutManager.h"
 
-ControlBar::ControlBar() : UiView() {
 
+class PlayCb : public UiButton::Callback {
+public:
+    PlayCb(ControlBar* owner) : m_owner{owner} {}
+    void clicked() override {
+        m_owner->m_playBut.setActivated(!m_owner->m_playBut.isActivated());
+        std::string t = m_owner->m_playBut.isActivated() ? "Pause" : "Play";
+        m_owner->m_playBut.setText(t);
+    }
+private:
+    ControlBar* m_owner;
+};
+
+
+
+ControlBar::ControlBar() : UiView() {
+    m_playCb = new PlayCb(this);
+    m_playBut.assign(m_playCb);
+
+    auto size = LayoutManager::instance().controlsTarget().getSize();
+    m_bounds.top_left = {0, 0};
+    m_bounds.top_right = {static_cast<int>(size.x), 0};
+    m_bounds.bottom_left = {0, static_cast<int>(size.y)};
+    m_bounds.bottom_right = {static_cast<int>(size.x), static_cast<int>(size.y)};
+
+    m_playBut.init("Play", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
+    m_loadBut.init("Load", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
+    m_saveBut.init("Save", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
+    m_settingsBut.init("Settings", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
+}
+
+ControlBar::~ControlBar() {
+    m_playBut.assign(nullptr);
+    delete m_playCb;
 }
 
 void ControlBar::draw(sf::Vector2<int> position) {
@@ -10,72 +42,81 @@ void ControlBar::draw(sf::Vector2<int> position) {
     auto* window = LayoutManager::instance().window();
     window->setView(LayoutManager::instance().controlsTarget());
 
-    m_bounds.top_left = {0, 0};
-    m_bounds.top_right = {100, 0};
-    m_bounds.bottom_left = {0, 50};
-    m_bounds.bottom_right = {100, 50};
-    auto size = m_bounds.size();
-
-    // TODO: Assign size instead of wrap?
-    m_playBut.init("Play", sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
-    m_playBut.setPosition({static_cast<float>(position.x), static_cast<float>(position.y)});
-
+    m_draw_pos.x = static_cast<float>(position.x) + 10;
+    m_draw_pos.y = static_cast<float>(position.y) + 10;
+    m_playBut.setPosition(m_draw_pos);
     m_playBut.draw(*window);
 
-//    auto size = m_bounds.size();
-//    m_playBut.setSize({static_cast<float>(size.x), static_cast<float>(size.y)});
-//    m_playBut.setFillColor(sf::Color(29, 29, 29, 255));
-//    m_playBut.setPosition({static_cast<float>(m_bounds.top_left.x + position.x), static_cast<float>(m_bounds.top_left.y + position.y)});
-//
-//    m_playText.setString("Play");
-//    m_playText.setFillColor(sf::Color::White);
-//    m_playText.setCharacterSize(16);
-//    m_playText.setFont(LayoutManager::instance().mainFont());
-//    auto text_lb = m_playText.getLocalBounds();
-//    m_playText.setOrigin(text_lb.width / 2.f, text_lb.height / 2.f);
-//    m_playText.setPosition(m_playBut.getPosition() + (m_playBut.getSize() / 2.f));
+    m_draw_pos.x += 100 + 10;
+    m_loadBut.setPosition(m_draw_pos);
+    m_loadBut.draw(*window);
 
-//    window->draw(m_playBut);
-//    window->draw(m_playText);
-}
+    m_draw_pos.x += 100 + 10;
+    m_saveBut.setPosition(m_draw_pos);
+    m_saveBut.draw(*window);
 
-void ControlBar::refreshPlayButtonState(int x, int y) {
-    bool shouldHover = m_playBut.contains(x, y);
-    bool shouldPress = m_mouseDown;
-
-    if(shouldHover) {
-        if(shouldPress) {
-            m_playBut.setState(UiButton::ButtonState::BS_PRESSED);
-        }
-        else {
-            m_playBut.setState(UiButton::ButtonState::BS_HOVERED);
-        }
-    }
-    else {
-        if(shouldPress) {
-            m_playBut.setState(UiButton::ButtonState::BS_PRESSED);
-        }
-        else {
-            m_playBut.setState(UiButton::ButtonState::BS_NONE);
-        }
-    }
+    m_draw_pos.x += 100 + 10;
+    m_settingsBut.setPosition(m_draw_pos);
+    m_settingsBut.draw(*window);
 }
 
 
-void ControlBar::onMouseMove(int x, int y) {
-    refreshPlayButtonState(x, y);
+bool ControlBar::onMouseMove(int x, int y) {
+    static std::vector<UiButton*> buttons {
+        &m_playBut,
+        &m_loadBut,
+        &m_saveBut,
+        &m_settingsBut,
+    };
+
+    for(auto& b : buttons) {
+        if(b->contains(x, y) && !b->isMouseHovered()) {
+            b->mouseEntered();
+        }
+        else if(!b->contains(x, y) && b->isMouseHovered()) {
+            b->mouseExited();
+        }
+    }
+
+    return false;
 }
 
 bool ControlBar::onMouseDown(int x, int y, int but) {
-    if(but == 0 && m_playBut.contains(x, y)) {
-        m_mouseDown = true;
+    static std::vector<UiButton*> buttons {
+            &m_playBut,
+            &m_loadBut,
+            &m_saveBut,
+            &m_settingsBut,
+    };
+
+    if(but == 0) {
+        for(auto& b : buttons) {
+            if(b->contains(x, y)) {
+                b->mouseDown();
+                return true;
+            }
+        }
     }
-    refreshPlayButtonState(x, y);
+
+    return false;
 }
 
-void ControlBar::onMouseUp( int but) {
+bool ControlBar::onMouseUp( int but) {
+    static std::vector<UiButton*> buttons {
+            &m_playBut,
+            &m_loadBut,
+            &m_saveBut,
+            &m_settingsBut,
+    };
+
     if(but == 0) {
-        m_mouseDown = false;
+        for(auto& b : buttons) {
+            if(b->isMouseDown()) {
+                b->mouseUp();
+                return true;
+            }
+        }
     }
-    refreshPlayButtonState(-1, -1);
+
+    return false;
 }

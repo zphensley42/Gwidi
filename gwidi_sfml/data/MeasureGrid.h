@@ -41,9 +41,9 @@ public:
     MeasureGrid(gwidi::data::Track &track);
     ~MeasureGrid() = default;
 
-    void onMouseMove(int x, int y) override;
+    bool onMouseMove(int x, int y) override;
     bool onMouseDown(int x, int y, int but) override;
-    void onMouseUp(int but) override;
+    bool onMouseUp(int but) override;
 
     void draw(sf::RenderWindow &window, sf::View& target, sf::Vector2f position);
 

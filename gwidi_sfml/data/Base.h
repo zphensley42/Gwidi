@@ -80,14 +80,81 @@ struct RectBounds {
 };
 
 class UiView {
-protected:
-    Identifier m_id;
-    RectBounds m_bounds;
 public:
+    enum MouseState {
+        MS_NONE = 0,
+        MS_HOVER,
+        MS_HOVER_DOWN,
+        MS_DOWN
+    };
+
     UiView() = default;
     UiView(Identifier id) : m_id{id} {}
     Identifier id() { return m_id; }
     virtual RectBounds& bounds() { return m_bounds; }
+
+    bool isMouseHovered() {
+        return m_mouseState == MS_HOVER || m_mouseState == MS_HOVER_DOWN;
+    }
+
+    bool isMouseDown() {
+        return m_mouseState == MS_HOVER_DOWN || m_mouseState == MS_DOWN;
+    }
+
+    virtual void mouseEntered() {
+        switch(m_mouseState) {
+            case MS_NONE: {
+                m_mouseState = MS_HOVER;
+                break;
+            }
+            case MS_DOWN: {
+                m_mouseState = MS_HOVER_DOWN;
+                break;
+            }
+        }
+    }
+    virtual void mouseExited() {
+        switch (m_mouseState) {
+            case MS_HOVER: {
+                m_mouseState = MS_NONE;
+                break;
+            }
+            case MS_HOVER_DOWN: {
+                m_mouseState = MS_DOWN;
+                break;
+            }
+        }
+    }
+    virtual void mouseDown() {
+        switch (m_mouseState) {
+            case MS_NONE: {
+                // Nothing, we have to hover with down to activate
+                break;
+            }
+            case MS_HOVER: {
+                m_mouseState = MS_HOVER_DOWN;
+                break;
+            }
+        }
+    }
+    virtual void mouseUp() {
+        switch (m_mouseState) {
+            case MS_DOWN: {
+                m_mouseState = MS_NONE;
+                break;
+            }
+            case MS_HOVER_DOWN: {
+                m_mouseState = MS_HOVER;
+                break;
+            }
+        }
+    }
+
+protected:
+    Identifier m_id;
+    RectBounds m_bounds;
+
+    MouseState m_mouseState{MS_NONE};
 };
 
 #endif //GWIDI_SFML_BASE_H

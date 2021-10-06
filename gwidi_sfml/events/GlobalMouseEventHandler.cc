@@ -3,20 +3,38 @@
 
 void GlobalMouseEventHandler::handleMouseDown(int but, int x, int y) {
     for(auto& cb : m_cbs) {
-        cb->onMouseDown(x, y, but);
+        if(cb->onMouseDown(x, y, but)) {
+            m_cbOverride = cb;
+            break;
+        }
     }
 }
 
 void GlobalMouseEventHandler::handleMouseUp(int but) {
     for(auto& cb : m_cbs) {
-        cb->onMouseUp(but);
+        if(m_cbOverride && cb == m_cbOverride && cb->onMouseUp(but)) {
+            m_cbOverride = nullptr;
+            cb->onMouseUp(but);
+        }
+        else if(!m_cbOverride) {
+            cb->onMouseUp(but);
+        }
     }
 }
 
 // TODO: Offload mouse-over detection? (i.e. don't loop over all slots while drawing)
 void GlobalMouseEventHandler::handleMouseMove(int x, int y) {
     for(auto& cb : m_cbs) {
-        cb->onMouseMove(x, y);
+        if(m_cbOverride && cb == m_cbOverride) {
+            if(cb->onMouseMove(x, y)) {
+                break;
+            }
+        }
+        else if(!m_cbOverride) {
+            if(cb->onMouseMove(x, y)) {
+                break;
+            }
+        }
     }
 }
 

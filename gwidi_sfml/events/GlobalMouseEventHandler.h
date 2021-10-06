@@ -6,13 +6,14 @@
 
 class GlobalMouseEventHandler {
 public:
-
     class Callback {
     public:
-        virtual void onMouseMove(int x, int y) = 0;
+        virtual bool onMouseMove(int x, int y) = 0;
         virtual bool onMouseDown(int x, int y, int but) = 0;
-        virtual void onMouseUp(int but) = 0;
+        virtual bool onMouseUp(int but) = 0;
     };
+
+    // TODO: Instead of the 'bool' responses on the callbacks above, implement 'focus' and only allow callbacks to be used if they have gained focus for move/up
 
     void handleMouseDown(int but, int x, int y);
     void handleMouseUp(int but);
@@ -23,6 +24,7 @@ public:
 
 private:
     std::list<std::shared_ptr<Callback>> m_cbs{};
+    std::shared_ptr<Callback> m_cbOverride{nullptr};
 };
 
 
