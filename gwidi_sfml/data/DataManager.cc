@@ -6,10 +6,12 @@ DataManager &DataManager::instance() {
     return s_instance;
 }
 
-void DataManager::load(GlobalMouseEventHandler &handler) {
+void DataManager::load(GlobalMouseEventHandler &handler, Callback* callback) {
     if(m_isLoaded.load()) {
         return;
     }
+
+    m_cb = callback;
 
     ThreadPool::instance().schedule([this, &handler]() {
         // Start with an empty song
@@ -38,5 +40,8 @@ void DataManager::load(GlobalMouseEventHandler &handler) {
         m_grid->setScrollAmountLimits(min_scroll_x, max_scroll_x, min_scroll_y, max_scroll_y);
 
         m_isLoaded.store(true);
+        if(m_cb) {
+            m_cb->onLoadComplete();
+        }
     });
 }

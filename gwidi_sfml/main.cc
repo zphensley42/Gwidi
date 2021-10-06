@@ -5,6 +5,7 @@
 
 #include "data/DataManager.h"
 #include "gui/LayoutManager.h"
+#include "playback/PlaybackManager.h"
 #include "gui/ControlBar.h"
 #include "events/ThreadPool.h"
 #include "data/MeasureGrid.h"
@@ -12,6 +13,7 @@
 // TODO: For the text on the slots, draw them to a render texture, save that out, use it as the texture of the sprite that we modify with clicks
 // TODO: See: https://progsv.epfl.ch/www/doc-sfml/html/classsf_1_1RenderTexture.htm   https://en.sfml-dev.org/forums/index.php?topic=16086.0
 
+// TODO: Logic to 'select' the octaves we want to play (3 main octaves)
 
 // TODO: Make a logger class
 
@@ -25,11 +27,18 @@ int main() {
 //    // Play the music
 //    music.play();
 
+    class DataManagerCb : public DataManager::Callback {
+    public:
+        void onLoadComplete() override {
+            gwidi::playback::PlaybackManager::instance().init(DataManager::instance().song(), 0);
+        }
+    };
+
+    DataManagerCb cb;
     GlobalMouseEventHandler handler;
-    DataManager dataManager;
     LayoutManager::instance().assignWindow(window);
     LayoutManager::instance().setup(window, handler);
-    dataManager.load(handler);
+    DataManager::instance().load(handler, &cb);
 
     // Start the game loop
     while (window.isOpen())
@@ -71,8 +80,8 @@ int main() {
         // Set views / viewports so that content in the middle is restrained
         LayoutManager::instance().draw(window);
 
-        if(dataManager.isLoaded()) {
-            dataManager.grid()->draw(window, LayoutManager::instance().contentTarget(), {0, 0});
+        if(DataManager::instance().isLoaded()) {
+            DataManager::instance().grid()->draw(window, LayoutManager::instance().contentTarget(), {0, 0});
         }
 
         // Update the window

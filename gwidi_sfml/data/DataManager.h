@@ -11,15 +11,26 @@
 
 class DataManager {
 public:
+    class Callback {
+    public:
+        virtual void onLoadComplete() = 0;
+    };
+
     static DataManager& instance();
-    void load(GlobalMouseEventHandler &handler);
+    void load(GlobalMouseEventHandler &handler, Callback* callback);
 
     inline std::shared_ptr<MeasureGrid> grid() {
         return m_grid;
     }
 
+    inline std::shared_ptr<gwidi::data::Song> song() {
+        return m_song;
+    }
+
     bool isLoaded() const { return m_isLoaded.load(); }
 private:
+    Callback* m_cb{nullptr};
+
     std::atomic_bool m_isLoaded{false};
     std::shared_ptr<MeasureGrid> m_grid{nullptr};
 

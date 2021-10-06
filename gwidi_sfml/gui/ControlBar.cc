@@ -1,5 +1,6 @@
 #include "ControlBar.h"
 #include "LayoutManager.h"
+#include "../playback/PlaybackManager.h"
 
 
 class PlayCb : public UiButton::Callback {
@@ -9,6 +10,13 @@ public:
         m_owner->m_playBut.setActivated(!m_owner->m_playBut.isActivated());
         std::string t = m_owner->m_playBut.isActivated() ? "Pause" : "Play";
         m_owner->m_playBut.setText(t);
+
+        if(m_owner->m_playBut.isActivated()) {
+            gwidi::playback::PlaybackManager::instance().play();
+        }
+        else {
+            gwidi::playback::PlaybackManager::instance().pause();
+        }
     }
 private:
     ControlBar* m_owner;
