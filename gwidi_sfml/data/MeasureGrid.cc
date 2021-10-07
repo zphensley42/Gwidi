@@ -8,6 +8,15 @@
 #include "../events/ThreadPool.h"
 #include "../gui/LayoutManager.h"
 
+// TODO: Could do parent->child transform better, via: https://www.sfml-dev.org/tutorials/2.5/graphics-transform.php#object-hierarchies-scene-graph
+
+MeasureGrid::~MeasureGrid() {
+    if(m_playingSlot) {
+        delete m_playingSlot;
+        m_playingSlot = nullptr;
+    }
+}
+
 MeasureGrid::MeasureGrid() {
     int measures = Constants::measure_count;
     for(int m = 0; m < measures; m++) {
@@ -34,6 +43,8 @@ MeasureGrid::MeasureGrid() {
     int h = m_bounds.bottom_right.y - m_bounds.top_left.y;
     m_bounds.bottom_left = {m_bounds.top_left.x, m_bounds.top_left.y + h};
     m_bounds.top_right = {m_bounds.top_left.x + w, m_bounds.top_left.y};
+
+    init();
 }
 
 MeasureGrid::MeasureGrid(gwidi::data::Track &track) {
@@ -63,6 +74,46 @@ MeasureGrid::MeasureGrid(gwidi::data::Track &track) {
     int h = m_bounds.bottom_right.y - m_bounds.top_left.y;
     m_bounds.bottom_left = {m_bounds.top_left.x, m_bounds.top_left.y + h};
     m_bounds.top_right = {m_bounds.top_left.x + w, m_bounds.top_left.y};
+
+    init();
+}
+
+void MeasureGrid::init() {
+    m_playingSlot = new unsigned int(0);
+    gwidi::playback::PlaybackManager::instance().assign(this);
+
+    // Build our 'play' overlay, to be drawn on the column of slots currently being played, denoted by m_playingSlot
+    auto size = m_bounds.size();
+    sf::RectangleShape playRect({static_cast<float>(UiConstants::slot_width), static_cast<float>(size.y)});
+    playRect.setFillColor(sf::Color(0, 0, 255, 50));
+    m_playOverRt.create(UiConstants::slot_width, size.y);
+    m_playOverRt.clear(sf::Color::Transparent);
+    m_playOverRt.draw(playRect);
+    m_playOverRt.display();
+    m_playOverlaySprite.setTexture(m_playOverRt.getTexture());
+
+    repositionPlayOverlay();
+}
+
+void MeasureGrid::repositionPlayOverlay() {
+    unsigned int index = m_playingSlot ? *m_playingSlot : 0;
+
+    // Determine our measure so that we know where to pull our position from
+    unsigned int measureIndex = index / Constants::slots_per_measure;
+    unsigned int slotIndex = index % Constants::slots_per_measure;
+    auto it = std::find_if(m_measures.begin(), m_measures.end(), [&measureIndex](Measure& m){
+        return m.id().measure_index == measureIndex;
+    });
+
+    if(it != m_measures.end()) {
+        // We have to control scrolling ourselves, so we just need the initial position of the measure instead of its absolute
+        float offsetX = it->initialPos().x;
+        offsetX += slotIndex * UiConstants::slot_width;
+
+        m_playOverlayPos.x = offsetX;
+        m_playOverlayPos.y = 0;
+        m_playOverlaySprite.setPosition({m_playOverlayPos.x, m_playOverlayPos.y});
+    }
 }
 
 MeasureGrid::operator std::string() const {
@@ -75,6 +126,14 @@ MeasureGrid::operator std::string() const {
     return ss.str();
 }
 
+void MeasureGrid::playSlot(unsigned int index) {
+    if(m_playingSlot) {
+        *m_playingSlot = index;
+
+        repositionPlayOverlay();
+    }
+}
+
 void MeasureGrid::draw(sf::RenderWindow &window, sf::View &target, sf::Vector2f position) {
     // scroll should move the image instead of the squares
     // TODO: Don't construct the vector here, just use it
@@ -85,7 +144,13 @@ void MeasureGrid::draw(sf::RenderWindow &window, sf::View &target, sf::Vector2f 
         m.draw();
     }
 
-    // TODO: Draw measure / octave labels
+    // TODO: For some reason, this sprite doesn't display until after we press a mouse button
+    // TODO: Figure this out
+    if(m_playingSlot) {
+        m_playOverlaySprite.setPosition({m_playOverlayPos.x + position.x + m_scroll_x, m_playOverlayPos.y + position.y + m_scroll_y});
+        window.setView(target);
+        window.draw(m_playOverlaySprite);
+    }
 }
 
 bool MeasureGrid::onMouseMove(int x, int y) {

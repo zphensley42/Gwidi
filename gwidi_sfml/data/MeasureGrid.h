@@ -9,10 +9,11 @@
 #include <SFML/Graphics.hpp>
 #include "../events/GlobalMouseEventHandler.h"
 #include "GwidiData.h"
+#include "../playback/PlaybackManager.h"
 
 class Slot;
 
-class MeasureGrid : public UiView, public GlobalMouseEventHandler::Callback {
+class MeasureGrid : public UiView, public GlobalMouseEventHandler::Callback, public gwidi::playback::PlaybackManager::Callback {
 private:
     std::vector<Measure> m_measures;
     std::vector<Note> m_notes;
@@ -31,19 +32,29 @@ private:
     bool m_dragDown{false};
     bool m_selectDown{false};
 
+    unsigned int* m_playingSlot{nullptr};
+    sf::Sprite m_playOverlaySprite;
+    sf::Vector2f m_playOverlayPos;
+    sf::RenderTexture m_playOverRt;
+
 
     void clampScrollValues();
     bool performIndexChecks(int x, int y, bool remove = false);
     void clearTriggeredIndices();
 
+    void init();
+    void repositionPlayOverlay();
+
 public:
     MeasureGrid();
     MeasureGrid(gwidi::data::Track &track);
-    ~MeasureGrid() = default;
+    ~MeasureGrid();
 
     bool onMouseMove(int x, int y) override;
     bool onMouseDown(int x, int y, int but) override;
     bool onMouseUp(int but) override;
+
+    void playSlot(unsigned int index) override;
 
     void draw(sf::RenderWindow &window, sf::View& target, sf::Vector2f position);
 

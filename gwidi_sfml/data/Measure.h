@@ -43,6 +43,7 @@ public:
     void clearTriggeredSlotsStatus();
 
     sf::FloatRect globalBounds() const;
+    sf::Vector2f initialPos() const;
 
     Slot* slotIndexForMouse(int x, int y, bool remove = false);
 };

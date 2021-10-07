@@ -140,7 +140,7 @@ void Measure::build(sf::Vector2f offset) {
 }
 
 void Measure::draw() {
-    LayoutManager::instance().window()->draw( m_background_sprite);
+    LayoutManager::instance().window()->draw(m_background_sprite);
     LayoutManager::instance().window()->draw(m_foreground_sprite);
 }
 
@@ -202,6 +202,10 @@ Slot* Measure::slotIndexForMouse(int x, int y, bool remove) {
 
 sf::FloatRect Measure::globalBounds() const {
     return m_background_sprite.getGlobalBounds();
+}
+
+sf::Vector2f Measure::initialPos() const {
+    return m_initialPos;
 }
 
 void Measure::clearTriggeredSlotsStatus() {
