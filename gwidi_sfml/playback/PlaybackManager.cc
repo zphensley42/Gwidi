@@ -156,6 +156,9 @@ void PlaybackManager::stop(bool doJoin) {
     if(state() != PBS_STOPPED) {
         updateState(PBS_STOPPED);
         if(m_playbackThread) {
+            m_initCv.notify_one();
+            m_pauseCv.notify_one();
+            m_skipCv.notify_one();
             if(doJoin) {
                 m_playbackThread->join();
             }

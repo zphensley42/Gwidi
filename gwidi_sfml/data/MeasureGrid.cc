@@ -81,18 +81,6 @@ MeasureGrid::MeasureGrid(gwidi::data::Track &track) {
 void MeasureGrid::init() {
     m_playingSlot = new unsigned int(0);
     gwidi::playback::PlaybackManager::instance().assign(this);
-
-    // Build our 'play' overlay, to be drawn on the column of slots currently being played, denoted by m_playingSlot
-    auto size = m_bounds.size();
-    sf::RectangleShape playRect({static_cast<float>(UiConstants::slot_width), static_cast<float>(size.y)});
-    playRect.setFillColor(sf::Color(0, 0, 255, 50));
-    m_playOverRt.create(UiConstants::slot_width, size.y);
-    m_playOverRt.clear(sf::Color::Transparent);
-    m_playOverRt.draw(playRect);
-    m_playOverRt.display();
-    m_playOverlaySprite.setTexture(m_playOverRt.getTexture());
-
-    repositionPlayOverlay();
 }
 
 void MeasureGrid::repositionPlayOverlay() {
@@ -113,6 +101,9 @@ void MeasureGrid::repositionPlayOverlay() {
         m_playOverlayPos.x = offsetX;
         m_playOverlayPos.y = 0;
         m_playOverlaySprite.setPosition({m_playOverlayPos.x, m_playOverlayPos.y});
+
+        // Assign our scroll to match the position
+        m_scroll_x = -1 * (offsetX - UiConstants::slot_width);
     }
 }
 
@@ -135,17 +126,34 @@ void MeasureGrid::playSlot(unsigned int index) {
 }
 
 void MeasureGrid::draw(sf::RenderWindow &window, sf::View &target, sf::Vector2f position) {
+    // By delaying this until draw, we guarantee that we are fully loaded and ready for UI by the time we create UI for display in-order
+    // TODO: This could still be improved probably for the main-loop, but this doesn't seem horrible still
+    static bool first_draw = true;
+    static sf::Vector2f measure_offset;
+    if(first_draw) {
+        first_draw = false;
+
+        // Build our 'play' overlay, to be drawn on the column of slots currently being played, denoted by m_playingSlot
+        auto size = m_bounds.size();
+        m_playOverRect.setSize({static_cast<float>(UiConstants::slot_width), static_cast<float>(size.y)});
+        m_playOverRect.setFillColor(sf::Color(0, 0, 255, 100));
+        m_playOverRt.create(UiConstants::slot_width, size.y);
+        m_playOverRt.clear(sf::Color::Transparent);
+        m_playOverRt.draw(m_playOverRect);
+        m_playOverRt.display();
+        m_playOverlaySprite.setTexture(m_playOverRt.getTexture());
+
+        repositionPlayOverlay();
+    }
     // scroll should move the image instead of the squares
-    // TODO: Don't construct the vector here, just use it
     for(auto &m : m_measures) {
-        sf::Vector2f offset{position.x + m_scroll_x, position.y + m_scroll_y};
-        m.scroll(sf::Vector2f(offset.x, offset.y));
+        measure_offset.x = position.x + m_scroll_x;
+        measure_offset.y = position.y + m_scroll_y;
+        m.scroll(sf::Vector2f(measure_offset.x, measure_offset.y));
         window.setView(target);
         m.draw();
     }
 
-    // TODO: For some reason, this sprite doesn't display until after we press a mouse button
-    // TODO: Figure this out
     if(m_playingSlot) {
         m_playOverlaySprite.setPosition({m_playOverlayPos.x + position.x + m_scroll_x, m_playOverlayPos.y + position.y + m_scroll_y});
         window.setView(target);

@@ -14,6 +14,7 @@
 // TODO: See: https://progsv.epfl.ch/www/doc-sfml/html/classsf_1_1RenderTexture.htm   https://en.sfml-dev.org/forums/index.php?topic=16086.0
 
 // TODO: Logic to 'select' the octaves we want to play (3 main octaves)
+// TODO: Selecting slots should update data stored in PlaybackManager (that we use to playback with)
 
 // TODO: Make a logger class
 
@@ -48,8 +49,9 @@ int main() {
         while (window.pollEvent(event))
         {
             // Close window: exit
-            if (event.type == sf::Event::Closed)
+            if (event.type == sf::Event::Closed) {
                 window.close();
+            }
             else if(event.type == sf::Event::MouseButtonPressed) {
                 std::cout << "event pressed, button: " << event.mouseButton.button << std::endl;
                 if (event.mouseButton.button == 1 || event.mouseButton.button == 0 || event.mouseButton.button == 2) {

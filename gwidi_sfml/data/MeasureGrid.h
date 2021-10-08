@@ -35,6 +35,7 @@ private:
     unsigned int* m_playingSlot{nullptr};
     sf::Sprite m_playOverlaySprite;
     sf::Vector2f m_playOverlayPos;
+    sf::RectangleShape m_playOverRect;
     sf::RenderTexture m_playOverRt;
 
 
