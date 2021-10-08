@@ -44,6 +44,11 @@ public:
     PlaybackState state();
 
 private:
+    struct ManagedSound {
+        sf::Sound sound;
+        sf::SoundBuffer buffer;
+        bool valid{false};
+    };
     int sleepTick();
     void playSlot(gwidi::data::VerticalSlotRepr &slot);
     void initSample(const std::string &note, int octave);
@@ -73,7 +78,7 @@ private:
 
     Callback* m_cb{nullptr};
 
-    std::unordered_map<std::string, sf::Music> m_pianoSamples;
+    std::unordered_map<std::string, ManagedSound> m_pianoSamples;
 };
 
 }

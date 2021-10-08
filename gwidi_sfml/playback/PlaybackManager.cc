@@ -13,19 +13,23 @@ PlaybackManager &PlaybackManager::instance() {
 }
 
 void PlaybackManager::initSample(const std::string &note, int octave) {
-    sf::Music m;
     std::stringstream ss;
     ss << "Build/gwidi/assets/samples/piano/";
     ss << note << octave << ".wav";
 
     std::stringstream ss2;
     ss2 << note << octave;
-    m_pianoSamples[ss2.str()].openFromFile(ss.str());
+
+    m_pianoSamples[ss2.str()].valid = m_pianoSamples[ss2.str()].buffer.loadFromFile(ss.str());
+    m_pianoSamples[ss2.str()].sound.setBuffer(m_pianoSamples[ss2.str()].buffer);
+    m_pianoSamples[ss2.str()].sound.setLoop(false);
 }
 
+// TODO: Handles octaves lower / higher than this range
+// TODO: Make them all use 3 octaves worth of notes? (depending on which ones are chosen)
 PlaybackManager::PlaybackManager() {
     // Initialize our music files
-    for(int i = 4; i <= 7; i++) {
+    for(int i = 2; i <= 7; i++) {
         initSample("C", i);
         initSample("D", i);
         initSample("E", i);
@@ -57,9 +61,14 @@ void PlaybackManager::playSlot(gwidi::data::VerticalSlotRepr &slot) {
         note_converted = "C";
     }
     ss << note_converted << slot.octave_num;
-    m_pianoSamples[ss.str()].setLoop(false);
-    m_pianoSamples[ss.str()].stop();
-    m_pianoSamples[ss.str()].play();
+
+    if(!m_pianoSamples[ss.str()].valid) {
+        std::cerr << "Failed to play slot: " << ss.str() << ", sample loading failed\n";
+        return;
+    }
+
+    m_pianoSamples[ss.str()].sound.stop();
+    m_pianoSamples[ss.str()].sound.play();
 }
 
 void PlaybackManager::init(std::shared_ptr<gwidi::data::Song> song, int trackNum) {

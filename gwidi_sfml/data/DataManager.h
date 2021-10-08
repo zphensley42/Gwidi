@@ -28,6 +28,8 @@ public:
     }
 
     bool isLoaded() const { return m_isLoaded.load(); }
+
+    void updateSlot(Slot& slot);
 private:
     Callback* m_cb{nullptr};
 
@@ -35,7 +37,7 @@ private:
     std::shared_ptr<MeasureGrid> m_grid{nullptr};
 
     std::shared_ptr<gwidi::data::Song> m_song{nullptr};
-    int m_selectedTrack{0};
+    int m_selectedTrack{1};
 };
 
 

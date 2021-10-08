@@ -7,6 +7,7 @@
 #include <iostream>
 #include "../events/ThreadPool.h"
 #include "../gui/LayoutManager.h"
+#include "DataManager.h"
 
 // TODO: Could do parent->child transform better, via: https://www.sfml-dev.org/tutorials/2.5/graphics-transform.php#object-hierarchies-scene-graph
 
@@ -51,8 +52,8 @@ MeasureGrid::MeasureGrid(gwidi::data::Track &track) {
     auto& measures = track.measures();
     for(int m = 0; m < measures.size(); m++) {
         auto& octaves = measures[m].octaves();
-        for(int o = 0; o < octaves.size(); o++) {
-            m_measures.emplace_back(Measure{octaves[o], {o, m, 0, 0}});
+        for(int o = octaves.size() - 1; o >= 0; o--) {
+            m_measures.emplace_back(Measure{octaves[o], {static_cast<int>(octaves.size() - o) - 1, m, 0, 0}});
         }
     }
 
@@ -230,6 +231,9 @@ bool MeasureGrid::performIndexChecks(int x, int y, bool remove) {
             if(slot) {
                 // Use these indices / this measure to trigger the slot
                 std::cout << "onMouseDown measure found {o: " << m.id().octave_index << ", m: " << m.id().measure_index << "}" << std::endl;
+
+                // Use the slot to update our data
+                DataManager::instance().updateSlot(*slot);
                 return true;
             }
         }

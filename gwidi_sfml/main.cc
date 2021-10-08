@@ -15,6 +15,10 @@
 
 // TODO: Logic to 'select' the octaves we want to play (3 main octaves)
 // TODO: Selecting slots should update data stored in PlaybackManager (that we use to playback with)
+// TODO: Mouse-wheel scrolling
+// TODO: Don't allow toggling when moving so much? It is too sensitive somehow
+// TODO: Loading popup while importing
+// TODO: The octaves are reversed somewhere (i.e. we are displaying them properly (9 is > -1) but they are playing as though 9 is lower than -1 and vice versa
 
 // TODO: Make a logger class
 

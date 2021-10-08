@@ -65,6 +65,17 @@ Slot::Slot(gwidi::data::Slot& slot, Identifier id) : UiView(id) {
     m_noteLabel.setPosition(m_bounds.top_left.x, m_bounds.top_left.y);
 }
 
+std::string Slot::noteKey() const {
+    auto noteIt = std::find_if(Constants::notes.begin(), Constants::notes.end(),[this](std::unordered_map<const char*, int>::value_type &entry) {
+        return entry.second == (Constants::notes.size() - m_id.note_index);
+    });
+    std::string noteLabel;
+    if(noteIt != Constants::notes.end()) {
+        noteLabel = noteIt->first;
+    }
+    return noteLabel;
+}
+
 Slot::Slot(Identifier id, UiConstants::Slot_ColType type) : m_type{type} {
     int octaves_height_offset = id.octave_index * (Constants::notes.size() * UiConstants::slot_height);
     int note_height_offset = id.note_index * UiConstants::slot_height;

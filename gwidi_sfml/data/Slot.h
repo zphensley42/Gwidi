@@ -53,6 +53,8 @@ public:
     void drawText(sf::RenderTexture &targetTexture, sf::Vector2f offset);
     explicit operator std::string() const;
 
+    std::string noteKey() const;
+
     inline DrawState drawState() const { return m_drawState; }
     inline PlayState playState() const { return m_playState; }
 

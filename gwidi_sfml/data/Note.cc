@@ -31,7 +31,7 @@ Note::Note(gwidi::data::Note& note, Identifier id) : UiView(id) {
         m_bounds.top_right = {width, y};
         m_bounds.bottom_right = {width, y + height};
 
-        m_slots.emplace_back(Slot{note.slots()[c], {0, 0, id.note_index, c}});
+        m_slots.emplace_back(Slot{note.slots()[c], {m_id.octave_index, m_id.measure_index, id.note_index, c}});
     }
 }
 
