@@ -18,7 +18,8 @@
 // TODO: Mouse-wheel scrolling
 // TODO: Don't allow toggling when moving so much? It is too sensitive somehow
 // TODO: Loading popup while importing
-// TODO: The octaves are reversed somewhere (i.e. we are displaying them properly (9 is > -1) but they are playing as though 9 is lower than -1 and vice versa
+
+// TODO: Separate lib that creates a file selection sfml widget / view
 
 // TODO: Make a logger class
 

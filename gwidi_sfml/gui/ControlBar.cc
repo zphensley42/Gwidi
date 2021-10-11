@@ -37,7 +37,9 @@ ControlBar::ControlBar() : UiView() {
     m_playBut.init("Play", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
     m_loadBut.init("Load", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
     m_saveBut.init("Save", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
+    m_clearBut.init("Clear", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
     m_settingsBut.init("Settings", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
+    m_importBut.init("Import", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
 }
 
 ControlBar::~ControlBar() {
@@ -64,8 +66,16 @@ void ControlBar::draw(sf::Vector2<int> position) {
     m_saveBut.draw(*window);
 
     m_draw_pos.x += 100 + 10;
+    m_clearBut.setPosition(m_draw_pos);
+    m_clearBut.draw(*window);
+
+    m_draw_pos.x += 100 + 10;
     m_settingsBut.setPosition(m_draw_pos);
     m_settingsBut.draw(*window);
+
+    m_draw_pos.x += 100 + 10;
+    m_importBut.setPosition(m_draw_pos);
+    m_importBut.draw(*window);
 }
 
 
@@ -74,7 +84,9 @@ bool ControlBar::onMouseMove(int x, int y) {
         &m_playBut,
         &m_loadBut,
         &m_saveBut,
+        &m_clearBut,
         &m_settingsBut,
+        &m_importBut,
     };
 
     for(auto& b : buttons) {
@@ -94,7 +106,9 @@ bool ControlBar::onMouseDown(int x, int y, int but) {
             &m_playBut,
             &m_loadBut,
             &m_saveBut,
+            &m_clearBut,
             &m_settingsBut,
+            &m_importBut,
     };
 
     if(but == 0) {
@@ -114,7 +128,9 @@ bool ControlBar::onMouseUp( int but) {
             &m_playBut,
             &m_loadBut,
             &m_saveBut,
+            &m_clearBut,
             &m_settingsBut,
+            &m_importBut,
     };
 
     if(but == 0) {

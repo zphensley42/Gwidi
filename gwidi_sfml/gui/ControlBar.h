@@ -26,7 +26,9 @@ private:
     UiButton m_playBut;
     UiButton m_loadBut;
     UiButton m_saveBut;
+    UiButton m_clearBut;
     UiButton m_settingsBut;
+    UiButton m_importBut;
 
     // Cached values used in drawing (to prevent draw loop allocations)
     sf::Vector2f m_draw_pos{};

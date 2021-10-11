@@ -67,7 +67,7 @@ void PlaybackManager::playSlot(gwidi::data::VerticalSlotRepr &slot) {
         return;
     }
 
-    m_pianoSamples[ss.str()].sound.stop();
+//    m_pianoSamples[ss.str()].sound.stop();
     m_pianoSamples[ss.str()].sound.play();
 }
 
