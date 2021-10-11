@@ -4,3 +4,6 @@
 [submodule "gwidi_sfml/external/Gwidi_Importer"]
 	path = gwidi_sfml/external/Gwidi_Importer
 	url = git@github.com:zphensley42/Gwidi_Importer.git
+[submodule "gwidi_sfml/external/sfml_fs_widget"]
+	path = gwidi_sfml/external/sfml_fs_widget
+	url = git@github.com:zphensley42/sfml_fs_widget.git
