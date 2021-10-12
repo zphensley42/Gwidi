@@ -7,3 +7,6 @@
 [submodule "gwidi_sfml/external/sfml_fs_widget"]
 	path = gwidi_sfml/external/sfml_fs_widget
 	url = git@github.com:zphensley42/sfml_fs_widget.git
+[submodule "gwidi_sfml/external/sfml_base_widgets"]
+	path = gwidi_sfml/external/sfml_base_widgets
+	url = git@github.com:zphensley42/sfml_base_widgets.git
