@@ -10,3 +10,6 @@
 [submodule "gwidi_sfml/external/sfml_base_widgets"]
 	path = gwidi_sfml/external/sfml_base_widgets
 	url = git@github.com:zphensley42/sfml_base_widgets.git
+[submodule "gwidi_sfml/external/nativefiledialog"]
+	path = gwidi_sfml/external/nativefiledialog
+	url = git@github.com:mlabbe/nativefiledialog.git

@@ -18,8 +18,10 @@ public:
     bool onMouseUp(int but) override;
 private:
     friend class PlayCb;
+    friend class LoadCb;
 
     UiButton::Callback* m_playCb;
+    UiButton::Callback* m_loadCb;
 
     // TODO: Need a pop-up class for the settings dialog
 

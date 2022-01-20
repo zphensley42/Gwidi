@@ -237,6 +237,7 @@ bool MeasureGrid::performIndexChecks(int x, int y, bool remove) {
                 return true;
             }
         }
+        return false;
     });
     return false;
 }

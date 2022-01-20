@@ -1,6 +1,35 @@
+#include <iostream>
 #include "ControlBar.h"
 #include "LayoutManager.h"
 #include "../playback/PlaybackManager.h"
+#include "nfd.h"
+
+class NfdOpenDialogWrapper {
+public:
+    NfdOpenDialogWrapper() = delete;
+    NfdOpenDialogWrapper(const std::string& defPath, const std::string& filter) {
+
+        nfdchar_t *outPath = nullptr;
+        auto result = NFD_OpenDialog(filter.c_str(), defPath.c_str(), &outPath);
+        switch(result) {
+            case NFD_OKAY: {
+                m_selectedPath = std::string(outPath);
+                free(outPath);
+                break;
+            }
+            case NFD_ERROR:
+            case NFD_CANCEL: {
+                // Nothing selected, log a message?
+                break;
+            }
+        }
+    }
+    std::string selected() const {
+        return m_selectedPath;
+    }
+private:
+    std::string m_selectedPath;
+};
 
 
 class PlayCb : public UiButton::Callback {
@@ -22,6 +51,26 @@ private:
     ControlBar* m_owner;
 };
 
+class LoadCb : public UiButton::Callback {
+public:
+    LoadCb(ControlBar* owner) : m_owner{owner} {}
+    void clicked() override {
+
+        // Use nfd to select a file to load
+        auto selectedFile = NfdOpenDialogWrapper("gwm", "").selected();
+        if(!selectedFile.empty()) {
+            std::cout << "Selected file to load: " << selectedFile << std::endl;
+        }
+        else {
+            std::cout << "Did not select a file to load" << std::endl;
+        }
+
+        m_owner->m_loadBut.mouseUp();
+    }
+private:
+    ControlBar* m_owner;
+};
+
 
 
 ControlBar::ControlBar() : UiView() {
@@ -36,6 +85,8 @@ ControlBar::ControlBar() : UiView() {
 
     m_playBut.init("Play", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
     m_loadBut.init("Load", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
+    m_loadCb = new LoadCb(this);
+    m_loadBut.assign(m_loadCb);
     m_saveBut.init("Save", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
     m_clearBut.init("Clear", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
     m_settingsBut.init("Settings", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
