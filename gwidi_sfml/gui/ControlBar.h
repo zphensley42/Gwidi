@@ -19,9 +19,15 @@ public:
 private:
     friend class PlayCb;
     friend class LoadCb;
+    friend class SaveCb;
+    friend class ClearCb;
+    friend class ImportCb;
 
     UiButton::Callback* m_playCb;
     UiButton::Callback* m_loadCb;
+    UiButton::Callback* m_saveCb;
+    UiButton::Callback* m_clearCb;
+    UiButton::Callback* m_importCb;
 
     // TODO: Need a pop-up class for the settings dialog
 

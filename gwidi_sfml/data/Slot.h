@@ -7,6 +7,8 @@
 #include "GwidiData.h"
 #include <SFML/Graphics.hpp>
 
+namespace gwidi { namespace view {
+
 class Slot : public UiView {
 public:
     enum DrawState {
@@ -67,6 +69,8 @@ private:
 
     Coord2D m_lastSize;
 };
+
+}}
 
 
 #endif //GWIDI_SFML_SLOT_H

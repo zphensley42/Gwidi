@@ -3,6 +3,8 @@
 #include "Slot.h"
 #include <sstream>
 
+namespace gwidi { namespace view {
+
 Note::Note() : Note(EMPTY_IDENTIFIER, UiConstants::Note_RowType::NOTE) {}
 
 Note::Note(Identifier id) : UiView(id) {
@@ -10,7 +12,7 @@ Note::Note(Identifier id) : UiView(id) {
     int width = cols * UiConstants::slot_width;
     int height = UiConstants::slot_height;
     int y = UiConstants::slot_height * id.note_index;
-    for(int c = 0; c < cols; c++) {
+    for (int c = 0; c < cols; c++) {
         m_bounds.top_left = {0, y};
         m_bounds.bottom_left = {0, y + height};
         m_bounds.top_right = {width, y};
@@ -20,12 +22,12 @@ Note::Note(Identifier id) : UiView(id) {
     }
 }
 
-Note::Note(gwidi::data::Note& note, Identifier id) : UiView(id) {
+Note::Note(gwidi::data::Note &note, Identifier id) : UiView(id) {
     int cols = note.slots().size();
     int width = cols * UiConstants::slot_width;
     int height = UiConstants::slot_height;
     int y = UiConstants::slot_height * id.note_index;
-    for(int c = 0; c < cols; c++) {
+    for (int c = 0; c < cols; c++) {
         m_bounds.top_left = {0, y};
         m_bounds.bottom_left = {0, y + height};
         m_bounds.top_right = {width, y};
@@ -35,7 +37,7 @@ Note::Note(gwidi::data::Note& note, Identifier id) : UiView(id) {
     }
 }
 
-Note::Note(Identifier& id, UiConstants::Note_RowType type) : m_type{type} {
+Note::Note(Identifier &id, UiConstants::Note_RowType type) : m_type{type} {
     int octaves_height_offset = id.octave_index * (Constants::notes.size() * UiConstants::slot_height);
     int note_height_offset = id.note_index * UiConstants::slot_height;
     int octaves_spacing_offset = id.octave_index * UiConstants::octave_spacing;
@@ -47,14 +49,14 @@ Note::Note(Identifier& id, UiConstants::Note_RowType type) : m_type{type} {
     switch (m_type) {
         case UiConstants::Note_RowType::NOTE: {
             int64_t cols = Constants::slots_per_measure * Constants::measure_count;
-            for(size_t i = 0; i < cols; i++) {
+            for (size_t i = 0; i < cols; i++) {
                 Identifier slot_id{};
                 slot_id.octave_index = id.octave_index;
                 slot_id.note_index = id.note_index;
                 slot_id.measure_index = int(i / Constants::slots_per_measure);
                 slot_id.slot_index = int(i % Constants::slots_per_measure);
                 auto is_spacer = slot_id.slot_index == 0;
-                if(is_spacer && i > 0) {
+                if (is_spacer && i > 0) {
                     m_slots.emplace_back(Slot(slot_id, UiConstants::Slot_ColType::MEASURE_SPACING));
                 }
                 m_slots.emplace_back(Slot(slot_id, UiConstants::Slot_ColType::SLOT));
@@ -98,10 +100,12 @@ Note::Note(Identifier& id, UiConstants::Note_RowType type) : m_type{type} {
 Note::operator std::string() const {
     std::stringstream ss;
     ss << "Note{ ";
-    ss << "bounds: " << (std::string)m_bounds << std::endl;
-    for(auto &slot : m_slots) {
-        ss << (std::string)slot;
+    ss << "bounds: " << (std::string) m_bounds << std::endl;
+    for (auto &slot: m_slots) {
+        ss << (std::string) slot;
     }
     ss << "}" << std::endl;
     return ss.str();
 }
+
+}}

@@ -11,6 +11,8 @@
 #include "GwidiData.h"
 #include "../playback/PlaybackManager.h"
 
+namespace gwidi { namespace view {
+
 class Slot;
 
 class MeasureGrid : public UiView, public GlobalMouseEventHandler::Callback, public gwidi::playback::PlaybackManager::Callback {
@@ -51,6 +53,8 @@ public:
     MeasureGrid(gwidi::data::Track &track);
     ~MeasureGrid();
 
+    void assignTrack(gwidi::data::Track &track);
+
     bool onMouseMove(int x, int y) override;
     bool onMouseDown(int x, int y, int but) override;
     bool onMouseUp(int but) override;
@@ -64,5 +68,6 @@ public:
     explicit operator std::string() const;
 };
 
+}}
 
 #endif //GWIDI_SFML_MEASUREGRID_H

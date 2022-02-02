@@ -33,10 +33,10 @@ int main() {
 //    // Play the music
 //    music.play();
 
-    class DataManagerCb : public DataManager::Callback {
+class DataManagerCb : public gwidi::data::DataManager::Callback {
     public:
         void onLoadComplete() override {
-            gwidi::playback::PlaybackManager::instance().init(DataManager::instance().song(), 0);
+            gwidi::playback::PlaybackManager::instance().init(gwidi::data::DataManager::instance().song(), 0);
         }
     };
 
@@ -44,7 +44,7 @@ int main() {
     GlobalMouseEventHandler handler;
     LayoutManager::instance().assignWindow(window);
     LayoutManager::instance().setup(window, handler);
-    DataManager::instance().load(handler, &cb);
+    gwidi::data::DataManager::instance().load(handler, &cb);
 
     // Start the game loop
     while (window.isOpen())
@@ -87,8 +87,11 @@ int main() {
         // Set views / viewports so that content in the middle is restrained
         LayoutManager::instance().draw(window);
 
-        if(DataManager::instance().isLoaded()) {
-            DataManager::instance().grid()->draw(window, LayoutManager::instance().contentTarget(), {0, 0});
+        if(gwidi::data::DataManager::instance().isLoaded()) {
+            auto grid = gwidi::data::DataManager::instance().grid();
+            if(grid) {
+                grid->draw(window, LayoutManager::instance().contentTarget(), {0, 0});
+            }
         }
 
         // Update the window

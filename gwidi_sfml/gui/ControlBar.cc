@@ -2,6 +2,7 @@
 #include "ControlBar.h"
 #include "LayoutManager.h"
 #include "../playback/PlaybackManager.h"
+#include "../data/DataManager.h"
 #include "nfd.h"
 
 class NfdOpenDialogWrapper {
@@ -11,6 +12,33 @@ public:
 
         nfdchar_t *outPath = nullptr;
         auto result = NFD_OpenDialog(filter.c_str(), defPath.c_str(), &outPath);
+        switch(result) {
+            case NFD_OKAY: {
+                m_selectedPath = std::string(outPath);
+                free(outPath);
+                break;
+            }
+            case NFD_ERROR:
+            case NFD_CANCEL: {
+                // Nothing selected, log a message?
+                break;
+            }
+        }
+    }
+    std::string selected() const {
+        return m_selectedPath;
+    }
+private:
+    std::string m_selectedPath;
+};
+
+class NfdSaveDialogWrapper {
+public:
+    NfdSaveDialogWrapper() = delete;
+    NfdSaveDialogWrapper(const std::string& defPath, const std::string& filter) {
+
+        nfdchar_t *outPath = nullptr;
+        auto result = NFD_SaveDialog(filter.c_str(), defPath.c_str(), &outPath);
         switch(result) {
             case NFD_OKAY: {
                 m_selectedPath = std::string(outPath);
@@ -57,9 +85,10 @@ public:
     void clicked() override {
 
         // Use nfd to select a file to load
-        auto selectedFile = NfdOpenDialogWrapper("gwm", "").selected();
+        auto selectedFile = NfdOpenDialogWrapper("", "gwm").selected();
         if(!selectedFile.empty()) {
             std::cout << "Selected file to load: " << selectedFile << std::endl;
+            gwidi::data::DataManager::instance().loadFromFile(selectedFile);
         }
         else {
             std::cout << "Did not select a file to load" << std::endl;
@@ -71,6 +100,57 @@ private:
     ControlBar* m_owner;
 };
 
+class SaveCb : public UiButton::Callback {
+public:
+    SaveCb(ControlBar* owner) : m_owner{owner} {}
+    void clicked() override {
+
+        // Use nfd to select a file to load
+        auto selectedFile = NfdSaveDialogWrapper("", "gwm").selected();
+        if(!selectedFile.empty()) {
+            std::cout << "Selected file to save: " << selectedFile << std::endl;
+            gwidi::data::DataManager::instance().saveToFile(selectedFile);
+        }
+        else {
+            std::cout << "Did not select a file to save" << std::endl;
+        }
+
+        m_owner->m_saveBut.mouseUp();
+    }
+private:
+    ControlBar* m_owner;
+};
+
+class ClearCb : public UiButton::Callback {
+public:
+    ClearCb(ControlBar* owner) : m_owner{owner} {}
+    void clicked() override {
+        gwidi::data::DataManager::instance().clear();
+    }
+private:
+    ControlBar* m_owner;
+};
+
+class ImportCb : public UiButton::Callback {
+public:
+    ImportCb(ControlBar* owner) : m_owner{owner} {}
+    void clicked() override {
+
+        // Use nfd to select a file to load
+        auto selectedFile = NfdOpenDialogWrapper("E:\\Tools\\repos\\Gwidi\\gwidi_sfml\\external\\Gwidi_Importer\\assets", "midi,mid").selected();
+        if(!selectedFile.empty()) {
+            std::cout << "Selected file to import: " << selectedFile << std::endl;
+            gwidi::data::DataManager::instance().importFromFile(selectedFile);
+        }
+        else {
+            std::cout << "Did not select a file to import" << std::endl;
+        }
+
+        m_owner->m_importBut.mouseUp();
+    }
+private:
+    ControlBar* m_owner;
+};
 
 
 ControlBar::ControlBar() : UiView() {
@@ -88,9 +168,15 @@ ControlBar::ControlBar() : UiView() {
     m_loadCb = new LoadCb(this);
     m_loadBut.assign(m_loadCb);
     m_saveBut.init("Save", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
+    m_saveCb = new SaveCb(this);
+    m_saveBut.assign(m_saveCb);
     m_clearBut.init("Clear", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
+    m_clearCb = new ClearCb(this);
+    m_clearBut.assign(m_clearCb);
     m_settingsBut.init("Settings", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
     m_importBut.init("Import", {100, 50}, sf::Color::Black, sf::Color::Cyan, sf::Color::Green, sf::Color::Red);
+    m_importCb = new ImportCb(this);
+    m_importBut.assign(m_importCb);
 }
 
 ControlBar::~ControlBar() {

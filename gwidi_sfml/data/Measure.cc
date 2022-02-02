@@ -2,6 +2,8 @@
 #include "Measure.h"
 #include "../gui/LayoutManager.h"
 
+namespace gwidi { namespace view {
+
 // TODO: Draw 2 textures: the background render texture (that has the text for the note labels) and the foreground
 // TODO: Foreground is transparent except for squares that are activated (and these are semi-transparent as 'overlays' of the slots behind)
 // TODO: This is an efficiency thing b/c the data lives in GPU buffers and we can't constantly update the same data for render texture as result (but we can a texture)
@@ -9,11 +11,11 @@
 // TODO: Draw quarter note measure lines (every 4th slot) -- draw as part of background texture
 
 Measure::~Measure() {
-    if(m_background_renderTexture) {
+    if (m_background_renderTexture) {
         delete m_background_renderTexture;
         m_background_renderTexture = nullptr;
     }
-    if(m_triggeredSlotsMutex) {
+    if (m_triggeredSlotsMutex) {
         delete m_triggeredSlotsMutex;
         m_triggeredSlotsMutex = nullptr;
     }
@@ -25,7 +27,7 @@ Measure::Measure(Identifier id) : UiView(id) {
 
     // Build our notes/slots from the id information / constants
     int rows = Constants::notes.size();
-    for(int r = 0; r < rows; r++) {
+    for (int r = 0; r < rows; r++) {
         m_notes.emplace_back(Note{{id.octave_index, id.measure_index, r, 0}});
     }
 
@@ -38,11 +40,11 @@ Measure::Measure(Identifier id) : UiView(id) {
     m_bounds.bottom_right.y += UiConstants::measure_label_height;
 }
 
-Measure::Measure(gwidi::data::Octave& o, Identifier id) : UiView(id) {
+Measure::Measure(gwidi::data::Octave &o, Identifier id) : UiView(id) {
 
     // Build our notes/slots from the id information / constants
     int index = 0;
-    for(auto &note : o.notes()) {
+    for (auto &note: o.notes()) {
 //        std::cout << "note key: " << note.key() << ", octave_index: " << id.octave_index << ", note_index: " << index << std::endl;
         m_notes.emplace_back(Note{note, {id.octave_index, id.measure_index, index, 0}});
         index++;
@@ -67,10 +69,12 @@ void Measure::build(sf::Vector2f offset) {
     m_triggeredSlotsMutex = new std::mutex();
     m_initialPos = offset;
     auto size = m_bounds.size();
-    m_background_image_pixels = new sf::Uint8[size.x * size.y * 4];  // entries are utf32, but the type is utf8 so we need to mult by 4
-    m_foreground_image_pixels = new sf::Uint8[size.x * size.y * 4];  // entries are utf32, but the type is utf8 so we need to mult by 4
-    for(auto &n : m_notes) {
-        for(auto &s : n.slots()) {
+    m_background_image_pixels = new sf::Uint8[size.x * size.y *
+                                              4];  // entries are utf32, but the type is utf8 so we need to mult by 4
+    m_foreground_image_pixels = new sf::Uint8[size.x * size.y *
+                                              4];  // entries are utf32, but the type is utf8 so we need to mult by 4
+    for (auto &n: m_notes) {
+        for (auto &s: n.slots()) {
             s.draw_background(m_background_image_pixels, size);
             s.draw_foreground(m_foreground_image_pixels, size);
         }
@@ -87,11 +91,11 @@ void Measure::build(sf::Vector2f offset) {
     m_background_renderTexture->draw(m_background_sprite);
 
     // Draw quarter note boundaries
-    for(auto &n : m_notes) {
+    for (auto &n: m_notes) {
         int index = 0;
-        for(auto &s : n.slots()) {
+        for (auto &s: n.slots()) {
             index++;
-            if(index % 4 == 0) {
+            if (index % 4 == 0) {
                 sf::RectangleShape quarterNoteRect({2.f, static_cast<float>(s.bounds().size().y)});
                 quarterNoteRect.setFillColor(sf::Color::Red);
                 quarterNoteRect.setPosition(s.bounds().top_right.x, s.bounds().top_right.y);
@@ -117,8 +121,8 @@ void Measure::build(sf::Vector2f offset) {
     m_background_renderTexture->draw(labelText);
 
     // This adds text
-    for(auto &n : m_notes) {
-        for(auto &s : n.slots()) {
+    for (auto &n: m_notes) {
+        for (auto &s: n.slots()) {
             s.drawText(*m_background_renderTexture, m_background_sprite.getPosition());
         }
     }
@@ -150,45 +154,45 @@ void Measure::scroll(sf::Vector2f offset) {
     m_foreground_sprite.setPosition(m_initialPos + offset);
 }
 
-Slot* Measure::slotIndexForMouse(int x, int y, bool remove) {
+Slot *Measure::slotIndexForMouse(int x, int y, bool remove) {
     auto g_bounds = m_background_sprite.getGlobalBounds();
-    if(g_bounds.contains(x, y)) {
+    if (g_bounds.contains(x, y)) {
         // Get index via the slot width / height vs bounds
         float offset_x = x - g_bounds.left;
         float offset_y = y - g_bounds.top;
-        int slot_index = static_cast<int>((offset_x / float(UiConstants::measure_width)) * float(Constants::slots_per_measure));
-        int note_index = static_cast<int>((offset_y / float(UiConstants::measure_height)) * float(Constants::notes.size()));
+        int slot_index = static_cast<int>((offset_x / float(UiConstants::measure_width)) *
+                                          float(Constants::slots_per_measure));
+        int note_index = static_cast<int>((offset_y / float(UiConstants::measure_height)) *
+                                          float(Constants::notes.size()));
 
         std::cout << "slot index found for mouse: " << slot_index << ", " << note_index << std::endl;
-        if(note_index >= m_notes.size() || slot_index >= m_notes[note_index].slots().size()) {
+        if (note_index >= m_notes.size() || slot_index >= m_notes[note_index].slots().size()) {
             return nullptr;
         }
 
         std::cout << "slot index found for mouse: " << slot_index << ", " << note_index << std::endl;
         {
             std::lock_guard<std::mutex> lock(*m_triggeredSlotsMutex);
-            auto found = std::find_if(m_triggeredSlots.begin(), m_triggeredSlots.end(), [&note_index, &slot_index](Coord2D &entry){
-                return entry.x == note_index && entry.y == slot_index;
-            }) != m_triggeredSlots.end();
+            auto found = std::find_if(m_triggeredSlots.begin(), m_triggeredSlots.end(),
+                                      [&note_index, &slot_index](Coord2D &entry) {
+                                          return entry.x == note_index && entry.y == slot_index;
+                                      }) != m_triggeredSlots.end();
             // Don't re-trigger
-            if(found) {
+            if (found) {
                 return nullptr;
-            }
-            else {
+            } else {
                 m_triggeredSlots.emplace_back(Coord2D{note_index, slot_index});
             }
         }
         auto &slot = m_notes[note_index].slots()[slot_index];
 
         // Use these indices / this measure to trigger the slot
-        if(remove) {
+        if (remove) {
             slot.updateDrawState(Slot::DrawState::DS_NONE, m_foreground_image_pixels);
-        }
-        else {
-            if(slot.drawState() == Slot::DrawState::DS_ACTIVATED) {
+        } else {
+            if (slot.drawState() == Slot::DrawState::DS_ACTIVATED) {
                 slot.updateDrawState(Slot::DrawState::DS_HELD, m_foreground_image_pixels);
-            }
-            else {
+            } else {
                 slot.updateDrawState(Slot::DrawState::DS_ACTIVATED, m_foreground_image_pixels);
             }
         }
@@ -212,3 +216,5 @@ void Measure::clearTriggeredSlotsStatus() {
     std::lock_guard<std::mutex> lock(*m_triggeredSlotsMutex);
     m_triggeredSlots.clear();
 }
+
+}}

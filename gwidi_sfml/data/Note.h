@@ -7,6 +7,8 @@
 #include "Slot.h"
 #include "GwidiData.h"
 
+namespace gwidi { namespace view {
+
 class Note : public UiView {
 private:
     std::vector<Slot> m_slots;
@@ -14,17 +16,22 @@ private:
 
 public:
     Note();
+
     Note(Identifier id);
-    Note(gwidi::data::Note& n, Identifier id);
-    Note(Identifier& id, UiConstants::Note_RowType type);
+
+    Note(gwidi::data::Note &n, Identifier id);
+
+    Note(Identifier &id, UiConstants::Note_RowType type);
+
     ~Note() = default;
 
-    std::vector<Slot>& slots() {
+    std::vector<Slot> &slots() {
         return m_slots;
     }
 
     explicit operator std::string() const;
 };
 
+}}
 
 #endif //GWIDI_SFML_NOTE_H

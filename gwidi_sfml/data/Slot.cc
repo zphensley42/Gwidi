@@ -2,6 +2,8 @@
 #include <sstream>
 #include "../gui/LayoutManager.h"
 
+namespace gwidi { namespace view {
+
 Slot::Slot() : Slot(Identifier{}, UiConstants::Slot_ColType::SLOT) {}
 
 Slot::Slot(Identifier id) : UiView(id) {
@@ -15,11 +17,12 @@ Slot::Slot(Identifier id) : UiView(id) {
     m_bounds.top_right = {x + width, y};
     m_bounds.bottom_right = {x + width, y + height};
 
-    auto noteIt = std::find_if(Constants::notes.begin(), Constants::notes.end(),[&id](std::unordered_map<const char*, int>::value_type &entry) {
-        return entry.second == (Constants::notes.size() - id.note_index);
-    });
+    auto noteIt = std::find_if(Constants::notes.begin(), Constants::notes.end(),
+                               [&id](std::unordered_map<const char *, int>::value_type &entry) {
+                                   return entry.second == (Constants::notes.size() - id.note_index);
+                               });
     std::string noteLabel = "Note Not Found";
-    if(noteIt != Constants::notes.end()) {
+    if (noteIt != Constants::notes.end()) {
         noteLabel = noteIt->first;
     }
     m_noteLabel.setFont(LayoutManager::instance().mainFont());
@@ -29,8 +32,8 @@ Slot::Slot(Identifier id) : UiView(id) {
     m_noteLabel.setPosition(m_bounds.top_left.x, m_bounds.top_left.y);
 }
 
-Slot::Slot(gwidi::data::Slot& slot, Identifier id) : UiView(id) {
-    switch(slot.state()) {
+Slot::Slot(gwidi::data::Slot &slot, Identifier id) : UiView(id) {
+    switch (slot.state()) {
         case gwidi::data::Slot::State::SLOT_ACTIVATED: {
             m_drawState = DrawState::DS_ACTIVATED;
             break;
@@ -51,11 +54,12 @@ Slot::Slot(gwidi::data::Slot& slot, Identifier id) : UiView(id) {
     m_bounds.top_right = {x + width, y};
     m_bounds.bottom_right = {x + width, y + height};
 
-    auto noteIt = std::find_if(Constants::notes.begin(), Constants::notes.end(),[&id](std::unordered_map<const char*, int>::value_type &entry) {
-        return entry.second == (Constants::notes.size() - id.note_index);
-    });
+    auto noteIt = std::find_if(Constants::notes.begin(), Constants::notes.end(),
+                               [&id](std::unordered_map<const char *, int>::value_type &entry) {
+                                   return entry.second == (Constants::notes.size() - id.note_index);
+                               });
     std::string noteLabel = "Note Not Found";
-    if(noteIt != Constants::notes.end()) {
+    if (noteIt != Constants::notes.end()) {
         noteLabel = noteIt->first;
     }
     m_noteLabel.setFont(LayoutManager::instance().mainFont());
@@ -66,11 +70,12 @@ Slot::Slot(gwidi::data::Slot& slot, Identifier id) : UiView(id) {
 }
 
 std::string Slot::noteKey() const {
-    auto noteIt = std::find_if(Constants::notes.begin(), Constants::notes.end(),[this](std::unordered_map<const char*, int>::value_type &entry) {
-        return entry.second == (Constants::notes.size() - m_id.note_index);
-    });
+    auto noteIt = std::find_if(Constants::notes.begin(), Constants::notes.end(),
+                               [this](std::unordered_map<const char *, int>::value_type &entry) {
+                                   return entry.second == (Constants::notes.size() - m_id.note_index);
+                               });
     std::string noteLabel;
-    if(noteIt != Constants::notes.end()) {
+    if (noteIt != Constants::notes.end()) {
         noteLabel = noteIt->first;
     }
     return noteLabel;
@@ -125,7 +130,7 @@ Slot::Slot(Identifier id, UiConstants::Slot_ColType type) : m_type{type} {
 Slot::operator std::string() const {
     std::stringstream ss;
     ss << "Slot{ ";
-    ss << "bounds: " << (std::string)m_bounds;
+    ss << "bounds: " << (std::string) m_bounds;
     ss << " }" << std::endl;
     return ss.str();
 }
@@ -135,7 +140,7 @@ void Slot::draw_foreground(sf::Uint8 *pixels, Coord2D &size) {
     m_lastSize = size;
 
     sf::Color color{sf::Color::White};
-    switch(m_drawState) {
+    switch (m_drawState) {
         case DS_ACTIVATED: {
             color = sf::Color::Green;
             break;
@@ -150,7 +155,7 @@ void Slot::draw_foreground(sf::Uint8 *pixels, Coord2D &size) {
         }
     }
 
-    switch(m_playState) {
+    switch (m_playState) {
         case PS_PLAYING: {
             color = sf::Color::Blue;
             break;
@@ -201,3 +206,5 @@ void Slot::drawText(sf::RenderTexture &targetTexture, sf::Vector2f offset) {
     m_noteLabel.setPosition(m_bounds.top_left.x + offset.x + 4, m_bounds.top_left.y + offset.y);
     targetTexture.draw(m_noteLabel);
 }
+
+}}
